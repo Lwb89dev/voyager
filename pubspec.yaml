@@ -1,0 +1,155 @@
+name: voyager
+description: "Voyager — automotive-first dashboard (navigation, music, weather, voice, phone) built on Roadstr. 100% open-source stack."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Roadstr is consumed as a source dependency, but not from the upstream
+  # checkout directly: tools/prepare_roadstr.sh mirrors ../roadstr into
+  # .roadstr/ and applies Voyager's UI patches on top. Upstream fixes arrive on
+  # the next build, Voyager's landscape tweaks ride along, and the original
+  # checkout is only ever read. Run that script before the first build.
+  roadstr:
+    path: .roadstr
+
+  # State management
+  provider: ^6.1.5+1
+
+  # Audio / music. Versions are pinned to the lines Roadstr already resolves:
+  # just_audio 0.10 + audio_session 0.2. audio_service 0.18.19 is the first
+  # release whose audio_session constraint (>=0.1.25 <0.3.0) admits 0.2.x;
+  # anything older would force Roadstr's TTS back onto audio_session 0.1.
+  audio_service: ^0.18.19
+  just_audio: ^0.10.6
+  audio_session: ^0.2.4
+
+  # Networking. web_socket_channel stays on 2.x because Roadstr's nostr_tools
+  # dependency has not migrated to the 3.x API.
+  http: ^1.6.0
+  web_socket_channel: ^2.4.0
+
+  # Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_secure_storage: ^10.3.1
+  path_provider: ^2.1.6
+
+  # Location & maps — same major versions as Roadstr, otherwise MapScreen and
+  # Voyager would be handed two incompatible LatLng types.
+  geolocator: ^14.0.3
+  latlong2: ^0.10.1
+  flutter_map: ^8.3.0
+
+  # UI
+  flutter_svg: ^2.3.0
+  cached_network_image: ^3.4.1
+  cupertino_icons: ^1.0.8
+
+  # Notifications
+  flutter_local_notifications: ^22.0.1
+
+  # Subsonic salted-MD5 token auth
+  crypto: ^3.0.2
+
+  # Podcast directory search and RSS feed parsing (MIT). The same library
+  # Anytime and MusicPod use — see docs/OPEN_SOURCE_STACK.md for why a Dart
+  # package rather than one of the Android podcast apps.
+  podcast_search: ^0.7.15
+
+  # Runtime permission requests for notifications, telephony and SMS.
+  # geolocator handles location on its own; everything else needs this.
+  permission_handler: ^11.3.1
+
+  # Keep the screen awake while docked in the car
+  wakelock_plus: ^1.6.1
+
+  # Opening the Lightning address, the source repo and the OS settings pages
+  url_launcher: ^6.3.1
+
+  # Version string shown in Settings → Info
+  package_info_plus: ^10.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.1
+
+# dependency_overrides only take effect from the root package, so Roadstr's
+# override of geolocator_android (Google Play Services stripped out — see
+# third_party/geolocator_android/ROADSTR_FORK.md in the Roadstr checkout) has
+# to be repeated here. Without it Voyager would silently pull the upstream
+# package back in and reintroduce the proprietary blob.
+dependency_overrides:
+  # podcast_search 0.7.15 switches exhaustively over DioExceptionType, and dio
+  # added `transformTimeout` to that enum in 5.10 — so the dependency itself
+  # stops compiling, in its own source, before any Voyager code runs. Held
+  # below 5.10 until podcast_search handles the new case.
+  #
+  # dio is pulled in only by podcast_search; Voyager's own networking is on
+  # package:http, so nothing else is affected by the pin.
+  dio: '>=5.7.0 <5.10.0'
+
+  geolocator_android:
+    path: .roadstr/third_party/geolocator_android
+
+  # Pinned to the exact version Roadstr's own lockfile resolves. Roadstr
+  # declares `file_picker: ^12.0.0-beta.7`, which from Voyager's root resolves
+  # forward to the 12.0.0 stable — and 12.0.0 removed `PlatformFile.size`,
+  # which Roadstr's settings screen still calls. Roadstr builds fine on its own
+  # because its lockfile holds the beta; Voyager has to say so explicitly.
+  # Remove this once Roadstr moves to the stable API.
+  file_picker: 12.0.0-beta.7
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Voyager's own artwork.
+    - assets/brand/
+    # Roadstr's runtime assets, copied in by tools/sync_roadstr_assets.sh.
+    # Roadstr loads these by their app-root key, which only resolves when the
+    # files sit at these paths in the *consuming* app's bundle — see the script
+    # for the full explanation.
+    - assets/icons/
+    - assets/cursors/
+    - assets/cursors/ostrich_run/
+    - assets/cursors/ostrich_idle/
+    - assets/espeak-ng-data.tar.gz
+    - assets/kokoro_phrases/
+    # Optional voice models, installed by the user.
+    - assets/tts_models/
+    - assets/vosk_models/
+
+flutter_launcher_icons:
+  image_path: "assets/brand/icon.png"
+  android: true
+  ios: false
+  # The icon is drawn on its own near-black plate, so the adaptive-icon
+  # background matches it rather than the launcher's default white — otherwise
+  # a white ring appears around the artwork on circular-mask launchers.
+  adaptive_icon_background: "#02040F"
+  adaptive_icon_foreground: "assets/brand/icon_foreground.png"
+  min_sdk_android: 26
+
+flutter_native_splash:
+  color: "#02040F"
+  image: assets/brand/icon.png
+  android_12:
+    color: "#02040F"
+    image: assets/brand/icon_foreground.png
+    icon_background_color: "#02040F"
+  android: true
+  ios: false

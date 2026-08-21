@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares which car-optimised capabilities Voyager provides.
+
+  Only "media" is claimed. Android Auto's projected UI has no template for a
+  third-party turn-by-turn map, so declaring "template" would advertise a
+  navigation experience the head unit cannot actually render. Voyager's
+  navigation is for the device's own screen; on a connected head unit it
+  behaves as a media app, which is honest and works.
+-->
+<automotiveApp>
+    <uses name="media"/>
+</automotiveApp>

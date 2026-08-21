@@ -1,0 +1,160 @@
+--- a/lib/widgets/route/route_panels.dart
++++ b/lib/widgets/route/route_panels.dart
+@@ -846,10 +846,157 @@
+     });
+   }
+ 
++  /// VOYAGER: the compact driving form of this panel — see the note in
++  /// [build].
++  Widget _voyagerDrivingBar(RoadstrColors c, AppLocalizations l) {
++    final media = MediaQuery.of(context);
++    return SlideTransition(
++      position: _slide,
++      child: Align(
++        alignment: Alignment.bottomCenter,
++        child: Padding(
++          padding: EdgeInsets.only(
++            left: 12 + media.viewPadding.left,
++            right: 12 + media.viewPadding.right,
++            bottom: widget.bottomInset > 0 ? widget.bottomInset : 12,
++          ),
++          child: Container(
++            decoration: BoxDecoration(
++              color: c.surface2,
++              borderRadius: BorderRadius.circular(20),
++              border: Border.all(color: c.border, width: 0.5),
++              boxShadow: c.panelShadow,
++            ),
++            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
++            // Sized to its contents: stretched across the screen, a bar whose
++            // controls occupy a third of it reads as a panel that failed to
++            // load rather than as two buttons.
++            child: Row(mainAxisSize: MainAxisSize.min, children: [
++              // The alternatives, as chips rather than 132 px cards. Only shown
++              // when there is actually a choice to make.
++              if (widget.alternatives.length > 1)
++                Flexible(
++                  child: SingleChildScrollView(
++                    scrollDirection: Axis.horizontal,
++                    child: Row(children: [
++                      for (var i = 0; i < widget.alternatives.length; i++)
++                        _voyagerRouteChip(c, i),
++                    ]),
++                  ),
++                ),
++              if (widget.alternatives.length > 1) const SizedBox(width: 12),
++              _voyagerAction(
++                onTap: _closeAnimated,
++                background: Colors.transparent,
++                border: c.border,
++                child: Icon(Icons.close_rounded, color: c.textSecondary, size: 26),
++              ),
++              const SizedBox(width: 10),
++              _voyagerAction(
++                onTap: () =>
++                    widget.onConfirm(widget.alternatives[widget.selected]),
++                background: c.accent,
++                border: c.accent,
++                wide: true,
++                child: Row(mainAxisSize: MainAxisSize.min, children: [
++                  Icon(
++                      widget.transportMode == 'walking'
++                          ? Icons.directions_walk_rounded
++                          : Icons.navigation_rounded,
++                      color: Colors.white,
++                      size: 24),
++                  const SizedBox(width: 10),
++                  Text(l.startNavigation,
++                      style: const TextStyle(
++                          color: Colors.white,
++                          fontSize: 17,
++                          fontWeight: FontWeight.w700)),
++                ]),
++              ),
++            ]),
++          ),
++        ),
++      ),
++    );
++  }
++
++  Widget _voyagerRouteChip(RoadstrColors c, int index) {
++    final route = widget.alternatives[index];
++    final selected = index == widget.selected;
++    return Padding(
++      padding: const EdgeInsets.only(right: 8),
++      child: GestureDetector(
++        onTap: () => widget.onSelect(index),
++        child: Container(
++          // Tall enough to be a target, not a label.
++          constraints: const BoxConstraints(minHeight: 56, minWidth: 92),
++          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
++          decoration: BoxDecoration(
++            color: selected
++                ? c.accent.withValues(alpha: 0.18)
++                : Colors.transparent,
++            borderRadius: BorderRadius.circular(14),
++            border: Border.all(color: selected ? c.accent : c.border),
++          ),
++          child: Column(
++            mainAxisAlignment: MainAxisAlignment.center,
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              Text(route.durationLabel,
++                  style: TextStyle(
++                      color: c.textPrimary,
++                      fontSize: 17,
++                      fontWeight: FontWeight.w700)),
++              Text(route.distanceLabel,
++                  style: TextStyle(color: c.textSecondary, fontSize: 13)),
++            ],
++          ),
++        ),
++      ),
++    );
++  }
++
++  Widget _voyagerAction({
++    required VoidCallback onTap,
++    required Color background,
++    required Color border,
++    required Widget child,
++    bool wide = false,
++  }) =>
++      GestureDetector(
++        onTap: onTap,
++        child: Container(
++          height: 64,
++          padding: EdgeInsets.symmetric(horizontal: wide ? 24 : 18),
++          alignment: Alignment.center,
++          decoration: BoxDecoration(
++            color: background,
++            borderRadius: BorderRadius.circular(16),
++            border: Border.all(color: border),
++          ),
++          child: child,
++        ),
++      );
++
+   @override
+   Widget build(BuildContext context) {
+     final c = widget.colors;
+     final l = AppLocalizations.of(context);
++    // VOYAGER: a compact bar instead of a bottom sheet.
++    //
++    // The full panel is a pre-trip screen: transport mode, an avoid-tolls
++    // toggle, weather, a scrolling row of route cards, all under a drag
++    // handle. That is the right shape for choosing a journey at a desk and the
++    // wrong one at the wheel — it covers the map completely, and its controls
++    // are phone-sized.
++    //
++    // This form keeps the one decision that has to be made here —
++    // which route, then go — as chips and two targets big enough to hit
++    // without aiming. Everything it drops is either a setting that belongs
++    // before departure or information already on the map.
++    // VOYAGER: always the compact driving bar, not only in landscape — see
++    // the note on [_voyagerDrivingBar].
++    return _voyagerDrivingBar(c, l);
+     final avoidanceRoute = widget.alternatives
+         .where((route) => route.isHighwayAndTollAvoidance)
+         .firstOrNull;

@@ -1,0 +1,23 @@
+# Copy this file to android/key.properties and fill in your keystore details.
+# NEVER commit key.properties — it contains the credentials to your signing key.
+#
+# Voyager can be signed with its own keystore or with the one you already use
+# for Roadstr. They are separate apps with separate application ids, so either
+# works; using the same key simply means both are updatable by whoever holds it.
+#
+# Generating a keystore (once):
+#
+#   keytool -genkey -v \
+#     -keystore voyager-release.jks \
+#     -alias voyager \
+#     -keyalg RSA -keysize 4096 \
+#     -validity 10000 \
+#     -dname "CN=Voyager, OU=Development, O=Voyager, L=Italy, C=IT"
+#
+# Keep the .jks file outside the project directory, and keep a backup: lose it
+# and no future build can ever update an installed copy of the app.
+
+storeFile=/path/to/voyager-release.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=voyager
+keyPassword=YOUR_KEY_PASSWORD

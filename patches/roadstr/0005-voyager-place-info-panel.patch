@@ -1,0 +1,121 @@
+--- a/lib/widgets/place/place_info_panel.dart
++++ b/lib/widgets/place/place_info_panel.dart
+@@ -168,9 +168,118 @@
+     };
+   }
+ 
++  /// VOYAGER: the compact driving form — the destination and one button.
++  ///
++  /// The full panel is a place *browser*: photograph, Wikipedia summary,
++  /// opening hours, web-search links, all in a sheet that covers 80% of the
++  /// screen. That is the right thing when someone is deciding where to go. It
++  /// is the wrong thing at the wheel, where the decision has already been made
++  /// and the only question left is "this one — go".
++  ///
++  /// So this form keeps the name, one line of address, and a target
++  /// big enough to hit without aiming. Everything dropped is still there when
++  /// the device is upright.
++  Widget _voyagerDrivingCard(RoadstrColors c) {
++    final media = MediaQuery.of(context);
++    final title = widget.wiki?.title ??
++        widget.details?.name ??
++        widget.address ??
++        '${widget.point.latitude.toStringAsFixed(4)}, '
++            '${widget.point.longitude.toStringAsFixed(4)}';
++    final subtitle =
++        widget.address != null && widget.address != title ? widget.address : null;
++
++    return SlideTransition(
++      position: _slide,
++      child: Align(
++        alignment: Alignment.bottomCenter,
++        child: Padding(
++          padding: EdgeInsets.only(
++            left: 12 + media.viewPadding.left,
++            right: 12 + media.viewPadding.right,
++            bottom: widget.bottomInset > 0 ? widget.bottomInset : 12,
++          ),
++          child: Container(
++            decoration: BoxDecoration(
++              color: c.surface2,
++              borderRadius: BorderRadius.circular(20),
++              border: Border.all(color: c.border, width: 0.5),
++              boxShadow: c.panelShadow,
++            ),
++            padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
++            child: Row(children: [
++              Expanded(
++                child: Column(
++                  mainAxisSize: MainAxisSize.min,
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    Text(title,
++                        maxLines: 1,
++                        overflow: TextOverflow.ellipsis,
++                        style: TextStyle(
++                            color: c.textPrimary,
++                            fontSize: 20,
++                            fontWeight: FontWeight.w700)),
++                    if (subtitle != null)
++                      Text(subtitle,
++                          maxLines: 1,
++                          overflow: TextOverflow.ellipsis,
++                          style:
++                              TextStyle(color: c.textSecondary, fontSize: 14)),
++                  ],
++                ),
++              ),
++              const SizedBox(width: 12),
++              GestureDetector(
++                onTap: _closeAnimated,
++                child: Container(
++                  height: 64,
++                  width: 64,
++                  alignment: Alignment.center,
++                  decoration: BoxDecoration(
++                    borderRadius: BorderRadius.circular(16),
++                    border: Border.all(color: c.border),
++                  ),
++                  child: Icon(Icons.close_rounded,
++                      color: c.textSecondary, size: 26),
++                ),
++              ),
++              const SizedBox(width: 10),
++              GestureDetector(
++                onTap: widget.onNavigate,
++                child: Container(
++                  height: 64,
++                  padding: const EdgeInsets.symmetric(horizontal: 24),
++                  alignment: Alignment.center,
++                  decoration: BoxDecoration(
++                    color: c.accent,
++                    borderRadius: BorderRadius.circular(16),
++                  ),
++                  child: Row(mainAxisSize: MainAxisSize.min, children: [
++                    const Icon(Icons.navigation_rounded,
++                        color: Colors.white, size: 24),
++                    const SizedBox(width: 10),
++                    Text(AppLocalizations.of(context).navigateHere,
++                        style: const TextStyle(
++                            color: Colors.white,
++                            fontSize: 17,
++                            fontWeight: FontWeight.w700)),
++                  ]),
++                ),
++              ),
++            ]),
++          ),
++        ),
++      ),
++    );
++  }
++
+   @override
+   Widget build(BuildContext context) {
+     final c = widget.colors;
++    // VOYAGER: always the compact driving card, not only in landscape — see
++    // the note on [_voyagerDrivingCard].
++    return _voyagerDrivingCard(c);
+     // Drag limit: 55% of available height so the panel stays partly visible
+     // on short screens (480dp) while allowing full dismiss on tall ones.
+     final maxDrag = MediaQuery.of(context).size.height * 0.55;

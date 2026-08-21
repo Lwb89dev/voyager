@@ -1,0 +1,344 @@
+--- a/lib/screens/map_screen.dart	2026-08-20 20:46:24.115538800 +0200
++++ b/lib/screens/map_screen.dart	2026-08-21 08:38:31.657686463 +0200
+@@ -194,6 +194,11 @@
+   /// Mutually exclusive with [_camTicker]/[_northTimer] (only one may drive
+   /// the map controller at a time); each cancels the others on start.
+   Timer? _followTicker;
++
++  /// VOYAGER: last known viewport height in logical pixels, used to place the
++  /// GPS cursor. Seeded with the value that was hard-coded before, so the
++  /// behaviour is identical until the first frame updates it.
++  double _voyagerViewportH = 800.0;
+   LatLng? _followTargetCenter;
+   double _followTargetZoom = 17.0;
+   double _followTargetRot = 0.0;
+@@ -1078,7 +1083,7 @@
+     // In heading-up navigation shift the camera ahead so the cursor sits at
+     // ~2/5 from the bottom of the screen (more road visible ahead).
+     final center = (_isNavigating && _headingMode)
+-        ? _navCameraCenter(anchor, _heading, targetZoom)
++        ? _navCameraCenter(anchor, _heading, targetZoom, _voyagerViewportH)
+         : anchor;
+     final rot = _headingMode ? -_heading : _camRotDeg;
+ 
+@@ -1104,14 +1109,21 @@
+   /// Shifts the camera center [heading]° ahead of [gps] by an amount that
+   /// places the GPS marker at ~1/3 from the bottom of the screen (more road
+   /// ahead, less behind). Only applied in heading-up navigation mode.
+-  static LatLng _navCameraCenter(LatLng gps, double heading, double zoom) {
++  static LatLng _navCameraCenter(
++      LatLng gps, double heading, double zoom, double screenH) {
+     // At zoom Z: meters per pixel = 40075016 / (256 × 2^Z)
+     const earthM = 40075016.0;
+     final mpp = earthM / (256.0 * math.pow(2, zoom));
+-    // Shift camera 18% of a ~800-px-tall screen ahead of GPS position:
+-    // the cursor sits at 50%−18% ≈ 32% from the bottom (was 40% at 10%),
+-    // showing noticeably more road ahead as requested.
+-    final shiftM = 0.18 * 800.0 * mpp;
++    // Shift the camera 18% of the screen height ahead of the GPS position, so
++    // the cursor sits at 50%−18% ≈ 32% from the bottom and the road ahead gets
++    // the larger share of the view.
++    //
++    // VOYAGER: this was 18% of a hard-coded 800 px. On a portrait phone that is
++    // roughly the screen height and the arithmetic works out; in landscape the
++    // viewport is about 410 px, so the shift became 35% of it and pushed the
++    // cursor off the bottom edge of the map. Using the real height keeps the
++    // ratio the design intended at any aspect.
++    final shiftM = 0.18 * screenH * mpp;
+     const degPerM = 1.0 / 111320.0;
+     final rad = heading * math.pi / 180.0;
+     final dlat = math.cos(rad) * shiftM * degPerM;
+@@ -3674,7 +3686,7 @@
+     // keep whatever rotation the user set so they don't lose their view.
+     final rot = (_isNavigating || _headingMode) ? -_heading : _camRotDeg;
+     final center = (_isNavigating && _headingMode)
+-        ? _navCameraCenter(_position, _heading, _camZoom)
++        ? _navCameraCenter(_position, _heading, _camZoom, _voyagerViewportH)
+         : _position;
+     _animateCamera(toCenter: center, toZoom: _camZoom, toRot: rot);
+   }
+@@ -4648,6 +4660,59 @@
+     final c = RoadstrColors.of(context);
+     final topInset = MediaQuery.of(context).viewPadding.top;
+     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
++    // VOYAGER: cap the width of the top overlays on a landscape screen.
++    //
++    // Edge to edge is right on a phone held in the hand, where the screen is
++    // ~400 dp wide. On a dashboard in landscape it is ~900 dp, and a search
++    // field stretched across all of it stops reading as a control and starts
++    // reading as a band across the driver's view of the map. Capped and
++    // centred, it takes the space a control needs and gives the rest back.
++    final voyagerSize = MediaQuery.of(context).size;
++    // VOYAGER: the camera shift below needs the real viewport height. Recorded
++    // here because the code that uses it runs off a GPS tick, where there is no
++    // BuildContext and where touching _mapController.camera before the map has
++    // rendered throws.
++    _voyagerViewportH = voyagerSize.height;
++    // VOYAGER: horizontal display-cutout insets.
++    //
++    // In portrait the notch or punch-hole sits in the status bar, which
++    // topInset already accounts for. Rotate the device and the same cutout
++    // moves to one of the long edges — exactly where the map's own controls
++    // are anchored, so a FAB ends up half under the camera. Flutter reports it
++    // in viewPadding.left/right; both are read because which side it lands on
++    // depends on which way the device was turned.
++    final voyagerCutoutL = MediaQuery.of(context).viewPadding.left;
++    final voyagerCutoutR = MediaQuery.of(context).viewPadding.right;
++    // VOYAGER: how much room the *host application* has reserved along the
++    // bottom for its own controls, as distinct from what the system reserves
++    // for the gesture bar.
++    //
++    // `viewPadding.bottom` is the system's, and it is what every floating
++    // button, modal sheet and edge-anchored bar in this file already reads —
++    // correctly. `padding.bottom` is where a host embedding this screen adds
++    // the height of its own chrome. Only the panels that would otherwise sit
++    // underneath that chrome use it; everything else keeps the system value
++    // and behaves exactly as it does in Roadstr standalone, where the two are
++    // equal.
++    final voyagerPanelInset = MediaQuery.of(context).padding.bottom;
++    // VOYAGER: where Voyager's own compact bottom-left bar (Notifiche/Profilo/
++    // Menu) and the corner FAB columns sit, as opposed to the full-width
++    // sheets above.
++    //
++    // In portrait the chrome pill runs nearly the full screen width, so a bar
++    // or FAB column at the chrome's own height would sit directly behind it —
++    // the original overlap bug. There it has to stack above, on
++    // [voyagerPanelInset], same as the full-width panels. In landscape the
++    // pill is narrow relative to the ~900 dp width and leaves the whole
++    // bottom-left and bottom-right corners clear at its own height, so the
++    // bar and the FABs can sit level with it instead of floating disconnected
++    // above it — sharing Voyager's row rather than stacking on a second one.
++    final voyagerLandscape = voyagerSize.width > voyagerSize.height;
++    final voyagerSideInset = voyagerLandscape ? bottomInset : voyagerPanelInset;
++    // VOYAGER: capped in both orientations. 560 is wider than a phone screen
++    // in portrait, so the cap has no visible effect there — it only ever binds
++    // in landscape, where it stops the bar spanning the whole windscreen.
++    const double voyagerOverlayMaxWidth = 560.0;
+     // Show the NEXT upcoming maneuver (what to do next), not the current step
+     // that was just executed.  The distance countdown (_distToNextManeuverM) is
+     // already the distance to that next step, so instruction and distance match.
+@@ -5130,7 +5195,11 @@
+               top: topInset + 12,
+               left: 16,
+               right: 16,
+-              child: PlaceSearchBar(
++              child: Center(
++                  child: ConstrainedBox(
++                      constraints:
++                          BoxConstraints(maxWidth: voyagerOverlayMaxWidth),
++                      child: PlaceSearchBar(
+                   controller: _searchController,
+                   colors: c,
+                   onFocus: () {
+@@ -5148,7 +5217,7 @@
+                       _nearbyCategory = null;
+                     });
+                     FocusScope.of(context).unfocus();
+-                  }),
++                  }))),
+             ),
+ 
+           // ── SEARCH RESULTS / NEARBY / HISTORY ────────────────────────────────
+@@ -5161,6 +5230,7 @@
+               // running off the bottom of the screen.
+               child: ConstrainedBox(
+                 constraints: BoxConstraints(
++                    maxWidth: voyagerOverlayMaxWidth,
+                     maxHeight: MediaQuery.of(context).size.height * 0.62),
+                 child: SingleChildScrollView(
+                   child: Column(mainAxisSize: MainAxisSize.min, children: [
+@@ -5270,10 +5340,22 @@
+               // (14 padding + 110 speedometer), so this clears it by twelve
+               // pixels and no more — anchored to the bottom rather than to a
+               // fraction of screen height, which drifted between devices.
+-              bottom: 136 + bottomInset,
++              // VOYAGER: sits beside the right-hand button column at the
++              // bottom edge, not centred.
++              //
++              // Centred and well clear of the bottom is right for a phone held
++              // upright with nothing else on screen. Under Voyager's floating
++              // chrome, centred is the middle of the picture — directly over
++              // the road ahead and over the cursor the driver is steering by.
++              // Down in the corner it is still readable at a glance and covers
++              // nothing that matters.
++              bottom: 18 + voyagerPanelInset,
+               left: 0,
+-              right: 0,
+-              child: Center(
++              // Clears the FAB column: its own right offset, plus the 52 px
++              // button, plus a gap.
++              right: 74 + voyagerCutoutR,
++              child: Align(
++                alignment: Alignment.centerRight,
+                 child: CurrentStreetLabel(
+                     name: _currentStreetName!, colors: c),
+               ),
+@@ -5289,7 +5371,7 @@
+           // be got rid of is one they stop reading.
+           if (!_ztlNoticeDismissed && (_inZtl || _ztlPassingBy != null))
+             Positioned(
+-              bottom: (_isNavigating ? 176 : 104) + bottomInset,
++              bottom: (_isNavigating ? 176 : 104) + voyagerPanelInset,
+               left: 16,
+               right: 16,
+               child: Dismissible(
+@@ -5318,21 +5400,23 @@
+               ),
+             ),
+ 
+-          // ── LEFT FABs: A→B planner + parking ───────────────────────────────────
+-          // These two stay left-only, and left the moment navigation starts:
+-          // re-planning and checking a saved spot are both pre-trip actions.
+-          // Reporting a hazard is not — it belongs on the right in both
+-          // states, alongside the other en-route controls, rather than
+-          // jumping sides depending on whether a trip is under way.
++          // ── LEFT FABs: report event + A→B planner + parking ───────────────────
+           if (!_showSearch &&
+               !_showAlternatives &&
+               !_isNavigating &&
+               !_showPreview &&
+               !_showPlanner)
+             Positioned(
+-              left: 12,
+-              bottom: 88 + bottomInset + 12,
++              left: 12 + voyagerCutoutL,
++              bottom: 88 + voyagerSideInset + 12,
+               child: Column(mainAxisSize: MainAxisSize.min, children: [
++                if (_hasRealFix)
++                  MapFab(
++                      onTap: _showReportSheet,
++                      colors: c,
++                      child: Icon(Icons.report_problem_outlined,
++                          color: c.onAccent, size: 22)),
++                if (_hasRealFix) const SizedBox(height: 8),
+                 MapFab(
+                     onTap: _openPlanner,
+                     colors: c,
+@@ -5410,8 +5494,14 @@
+           // ── RIGHT FABs ────────────────────────────────────────────────────────
+           if (!_showSearch && !_showAlternatives && !_showPreview)
+             Positioned(
+-              right: 12,
+-              bottom: (_isNavigating ? 160 : 88) + bottomInset + 12,
++              right: 12 + voyagerCutoutR,
++              // VOYAGER: this column no longer has to clear a full-width
++              // navigation panel or bottom bar — both are now small, and
++              // neither reaches this corner. The 160 px offset this used to
++              // carry for the old portrait layout pushed a four-button stack,
++              // about 230 px tall, straight through the top of a 410 px-tall
++              // screen and under the status bar.
++              bottom: 12 + voyagerSideInset,
+               child: Column(mainAxisSize: MainAxisSize.min, children: [
+                 CompassFab(
+                   rotDeg: _camRotDeg,
+@@ -5441,16 +5531,6 @@
+                               : c.onAccent.withValues(alpha: 0.38),
+                           size: 22),
+                 ),
+-                if (_hasRealFix) ...[
+-                  const SizedBox(height: 8),
+-                  // Same slot, same color, whether or not a trip is under
+-                  // way — a hazard can be reported from a standstill too.
+-                  MapFab(
+-                      onTap: _showReportSheet,
+-                      colors: c,
+-                      child: Icon(Icons.report_problem_outlined,
+-                          color: c.onAccent, size: 22)),
+-                ],
+                 if (_isNavigating) ...[
+                   const SizedBox(height: 8),
+                   // Adding a stop mid-journey takes the place the volume
+@@ -5463,6 +5543,12 @@
+                       colors: c,
+                       child: Icon(Icons.add_location_alt_outlined,
+                           color: c.onAccent, size: 22)),
++                  const SizedBox(height: 8),
++                  MapFab(
++                      onTap: _showReportSheet,
++                      colors: c,
++                      child: Icon(Icons.report_problem_outlined,
++                          color: const Color(0xFFFFE082), size: 22)),
+                 ],
+               ]),
+             ),
+@@ -5470,7 +5556,7 @@
+           // ── ARRIVAL BANNER ───────────────────────────────────────────────────
+           if (_showArrivalBanner)
+             Positioned(
+-              bottom: 88 + bottomInset + 16,
++              bottom: 88 + voyagerPanelInset + 16,
+               left: 24,
+               right: 24,
+               child: Material(
+@@ -5508,8 +5594,8 @@
+           // user is looking at, and it floated on top of the preview card.
+           if (_currentSpeedLimit != null && _showsSpeedLimitSign)
+             Positioned(
+-              bottom: 150 + bottomInset,
+-              left: 16,
++              bottom: 150 + voyagerPanelInset,
++              left: 16 + voyagerCutoutL,
+               child: SpeedLimitSign(_currentSpeedLimit!),
+             ),
+ 
+@@ -5522,7 +5608,7 @@
+                 ? NavPanel(
+                     route: _route!,
+                     speed: _speed,
+-                    bottomInset: bottomInset,
++                    bottomInset: voyagerPanelInset,
+                     colors: c,
+                     onStop: _showExitNavigationDialog,
+                     remainingDistM: _remainingDistM,
+@@ -5539,7 +5625,7 @@
+                         wikiQuery: _placeWikiQuery,
+                         openingHours: _placeOpeningHours,
+                         loading: _placeLoading,
+-                        bottomInset: bottomInset,
++                        bottomInset: voyagerPanelInset,
+                         colors: c,
+                         onNavigate: () {
+                           // Capture values BEFORE _closePlaceInfo() nulls them out.
+@@ -5559,7 +5645,7 @@
+                             label: _pendingLabel,
+                             trafficEvents: _routeTrafficEvents(_previewRoute!),
+                             trafficStatus: _trafficStatus(_previewRoute!),
+-                            bottomInset: bottomInset,
++                            bottomInset: voyagerPanelInset,
+                             colors: c,
+                             transportMode: _transportMode,
+                             onStart: _confirmPreview,
+@@ -5571,7 +5657,7 @@
+                                 itineraries: _transitItineraries,
+                                 selected: _selectedTransit,
+                                 colors: c,
+-                                bottomInset: bottomInset,
++                                bottomInset: voyagerPanelInset,
+                                 label: _pendingLabel,
+                                 failed: _transitFailed,
+                                 onSelect: (i) {
+@@ -5587,7 +5673,7 @@
+                             ? RouteAlternativesPanel(
+                                 alternatives: _alternatives,
+                                 selected: _selectedAlt,
+-                                bottomInset: bottomInset,
++                                bottomInset: voyagerPanelInset,
+                                 colors: c,
+                                 transportMode: _transportMode,
+                                 destination: _destination!,
+@@ -5601,7 +5687,14 @@
+                                 onAvoidanceChanged: _toggleAvoidanceRoute,
+                               )
+                             : MapBottomBar(
+-                                bottomInset: bottomInset,
++                                // VOYAGER: shares Voyager's own row in
++                                // landscape, where the chrome pill leaves the
++                                // bottom-left corner clear at its own height;
++                                // stacks above it in portrait, where the pill
++                                // runs nearly the full width and a bar at the
++                                // same height would sit directly behind it —
++                                // see [voyagerSideInset].
++                                bottomInset: voyagerSideInset,
+                                 colors: c,
+                                 pubkey: _myPubkey,
+                                 profilePicture: _profilePicture,

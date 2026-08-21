@@ -1,0 +1,153 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Navigation. ACCESS_FINE_LOCATION is required for turn-by-turn: a
+         coarse fix is accurate to a city block, which is not a lane. The
+         background permission is deliberately absent — Voyager navigates
+         while it is in front, and the foreground service covers a screen-off
+         drive. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission
+        android:name="android.permission.INTERNET"/>
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Playback and guidance continue with the screen off. -->
+    <uses-permission
+        android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <!-- geolocator runs its position stream inside a foreground service. From
+         Android 14 a typed foreground service must hold the matching typed
+         permission, and without this one the service throws SecurityException
+         the moment navigation asks for a fix — the map then never receives a
+         position at all. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission
+        android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS"/>
+    <uses-permission
+        android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Local music files. READ_MEDIA_AUDIO is the API 33+ replacement for
+         READ_EXTERNAL_STORAGE, which is kept with maxSdkVersion for older
+         devices rather than being requested everywhere. -->
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <!-- Telephony and messaging: entirely optional. The phone plugin hides
+         itself when these are refused, and every other feature is unaffected. -->
+    <uses-permission
+        android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission
+        android:name="android.permission.ANSWER_PHONE_CALLS"/>
+    <uses-permission
+        android:name="android.permission.READ_CALL_LOG"/>
+    <uses-permission
+        android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission
+        android:name="android.permission.RECEIVE_SMS"/>
+    <!-- Speech recognition, once the Vosk binding lands. Requested at the
+         point the feature is switched on, not at launch. -->
+    <uses-permission
+        android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Steering-wheel and headset transport keys arrive over Bluetooth. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <!-- None of these are required to install: a tablet with no SIM and no
+         Bluetooth is still a perfectly good Voyager device, it simply hides
+         the phone plugin. -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false"/>
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false"/>
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false"/>
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false"/>
+    <application
+        android:label="Voyager"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false">
+        <!-- usesCleartextTraffic is on for one reason: a self-hosted Navidrome
+             or Jellyfin on a home LAN almost never has a TLS certificate, and
+             refusing plain HTTP there would mean refusing the main use case.
+             The traffic is on the user's own network to the user's own box. -->
+        <!-- allowBackup is off: the encrypted settings box holds server
+             credentials, and there is no reason for adb backup or Android's
+             auto-backup to ever carry it off the device, key or no key. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"/>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Declares Voyager to Android Automotive / Android Auto head units,
+             which look for this metadata before offering the app in the car
+             launcher. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc"/>
+        <!-- audio_service: the media session and its foreground service. The
+             session is what makes the steering-wheel AVRCP keys reach Dart. -->
+        <service
+            android:name="com.ryanheise.audioservice.AudioService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true"
+            tools:ignore="Instantiatable">
+            <intent-filter>
+                <action
+                    android:name="android.media.browse.MediaBrowserService"/>
+            </intent-filter>
+        </service>
+        <receiver
+            android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+            android:exported="true"
+            tools:ignore="Instantiatable">
+            <intent-filter>
+                <action
+                    android:name="android.intent.action.MEDIA_BUTTON"/>
+            </intent-filter>
+        </receiver>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2"/>
+    </application>
+    <queries>
+        <intent>
+            <action
+                android:name="android.intent.action.PROCESS_TEXT"/>
+            <data
+                android:mimeType="text/plain"/>
+        </intent>
+        <!-- Lets the donation tile discover whether a Lightning wallet is
+             installed before trying to hand it a payment URI. -->
+        <intent>
+            <action
+                android:name="android.intent.action.VIEW"/>
+            <data
+                android:scheme="lightning"/>
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,63 @@
+import 'package:flutter/material.dart';
+
+import '../config/automotive_config.dart';
+import '../models/plugin_manifest.dart';
+import '../theme/voyager_theme.dart';
+
+/// Shown in place of a plugin's view while it is still initialising, or after
+/// it has failed.
+///
+/// A failed plugin gets a sentence, not a spinner that never stops: a driver
+/// who can see "music server unreachable" stops tapping and gets on with
+/// driving, which is the entire point.
+class PluginPlaceholder extends StatelessWidget {
+  final PluginManifest manifest;
+  final String? error;
+
+  const PluginPlaceholder({super.key, required this.manifest, this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    final failed = error != null;
+    return ColoredBox(
+      color: VoyagerColors.background,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AutomotiveConfig.sectionGap),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                failed ? Icons.cloud_off_rounded : manifest.icon,
+                size: 56,
+                color: failed
+                    ? VoyagerColors.warning
+                    : VoyagerColors.textSecondary,
+              ),
+              const SizedBox(height: AutomotiveConfig.gutter),
+              Text(
+                failed ? error! : manifest.label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: VoyagerColors.textPrimary,
+                  fontSize: AutomotiveConfig.secondaryTextSize,
+                ),
+              ),
+              if (!failed) ...[
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: VoyagerColors.accent,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
