@@ -68,7 +68,15 @@ else lives inside it, sized for a glance instead of a stare.
 
 ## Screenshots
 
-*(coming soon)*
+<table>
+<tr>
+<td align="center"><img src="docs/screenshots/navigation-portrait.png" width="240"><br><sub>Navigation — portrait</sub></td>
+<td align="center"><img src="docs/screenshots/music.png" width="240"><br><sub>Music</sub></td>
+<td align="center"><img src="docs/screenshots/podcast.png" width="240"><br><sub>Podcasts</sub></td>
+</tr>
+</table>
+
+<img src="docs/screenshots/navigation-landscape.png" width="760"><br><sub>Navigation — landscape</sub>
 
 ## Requirements
 
