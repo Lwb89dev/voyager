@@ -1,0 +1,24 @@
+--- a/lib/screens/profile_screen.dart	2026-07-26 21:06:11.538817830 +0200
++++ b/lib/screens/profile_screen.dart	2026-08-22 08:28:09.090110966 +0200
+@@ -238,6 +238,12 @@
+       await _st.write(key: _kFlavor, value: 'amber');
+       if (!mounted) return;
+       setState(() {
++        // VOYAGER: _loggedIn and _isOwnProfile both key off _targetPubHex,
++        // not _npub — without setting it here too, a successful Amber login
++        // updated the npub/flavor fields but left the screen reading as
++        // logged out (blank profile, no events, login button still shown).
++        // Same bug, same fix, in _loginWithNsec below.
++        _targetPubHex = pubHex;
+         _npub = npub;
+         _flavor = 'amber';
+         _waitingAmber = false;
+@@ -380,6 +386,8 @@
+       await _st.write(key: _kFlavor, value: 'nsec');
+       if (!mounted) return;
+       setState(() {
++        // VOYAGER: see the identical note in _loginWithAmber.
++        _targetPubHex = pubHex;
+         _npub = npub;
+         _flavor = 'nsec';
+       });

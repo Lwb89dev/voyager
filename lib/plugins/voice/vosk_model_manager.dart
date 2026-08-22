@@ -162,33 +162,54 @@ class VoskModelManager {
       if (await zipFile.exists()) await zipFile.delete();
       await partFile.rename(zipPath);
 
-      // Extraction is the real integrity check: a truncated or corrupt
-      // download fails a CRC32 check inside the archive package rather than
-      // silently producing a model that loads garbage.
-      final targetDir = Directory(await modelPath(model.languageCode));
-      if (await targetDir.exists()) await targetDir.delete(recursive: true);
-      await targetDir.create(recursive: true);
-      await extractFileToDisk(zipPath, targetDir.path);
+      // Extracted into a fresh, uniquely-named directory rather than
+      // straight into the model's own folder, then swapped into place only
+      // once fully built. Extracting in place — delete the old folder,
+      // recreate it, extract — left a window where a retry's fresh files and
+      // a previous attempt's leftovers could collide on Android's storage
+      // layer: renaming a just-extracted subfolder (e.g. `am/`) onto one of
+      // the same name that a prior run had already left behind, only
+      // partially cleaned up, failed with "OS error: directory not empty,
+      // errno 39" instead of extracting a working model. Building somewhere
+      // nothing else has ever written to removes the collision entirely.
+      final scratchDir = await Directory.systemTemp
+          .createTemp('voyager_vosk_${model.languageCode}_');
+      try {
+        // Extraction is the real integrity check: a truncated or corrupt
+        // download fails a CRC32 check inside the archive package rather
+        // than silently producing a model that loads garbage.
+        await extractFileToDisk(zipPath, scratchDir.path);
 
-      // The zip contains one top-level folder (e.g. vosk-model-small-it-0.22/)
-      // rather than the model files directly — flatten it so modelPath()
-      // points straight at am/, conf/, etc.
-      final entries = await targetDir.list().toList();
-      if (entries.length == 1 && entries.first is Directory) {
-        final inner = entries.first as Directory;
-        for (final child in await inner.list().toList()) {
-          await child
-              .rename('${targetDir.path}/${child.uri.pathSegments.last}');
+        // The zip contains one top-level folder (e.g.
+        // vosk-model-small-it-0.22/) rather than the model files directly —
+        // flatten it so modelPath() points straight at am/, conf/, etc.
+        final entries = await scratchDir.list().toList();
+        if (entries.length == 1 && entries.first is Directory) {
+          final inner = entries.first as Directory;
+          for (final child in await inner.list().toList()) {
+            await child
+                .rename('${scratchDir.path}/${child.uri.pathSegments.last}');
+          }
+          await inner.delete(recursive: true);
         }
-        await inner.delete(recursive: true);
-      }
 
-      if (!await isReady(model.languageCode)) {
-        throw Exception('Vosk model extracted but looks incomplete');
-      }
+        final hasAm = await File('${scratchDir.path}/am/final.mdl').exists();
+        final hasConf = await Directory('${scratchDir.path}/conf').exists();
+        if (!hasAm || !hasConf) {
+          throw Exception('Vosk model extracted but looks incomplete');
+        }
 
-      final config = OpenSourceConfig.load();
-      await config.copyWith(voskModelPath: targetDir.path).save();
+        final targetDir = Directory(await modelPath(model.languageCode));
+        if (await targetDir.exists()) {
+          await targetDir.delete(recursive: true);
+        }
+        await scratchDir.rename(targetDir.path);
+
+        final config = OpenSourceConfig.load();
+        await config.copyWith(voskModelPath: targetDir.path).save();
+      } finally {
+        if (await scratchDir.exists()) await scratchDir.delete(recursive: true);
+      }
 
       _lastProgress = 1.0;
       _progressCtrl.add(1.0);

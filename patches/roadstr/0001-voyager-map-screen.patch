@@ -1,5 +1,5 @@
 --- a/lib/screens/map_screen.dart	2026-08-21 09:33:04.745720730 +0200
-+++ b/lib/screens/map_screen.dart	2026-08-22 07:52:18.961363453 +0200
++++ b/lib/screens/map_screen.dart	2026-08-22 08:36:18.500403318 +0200
 @@ -93,7 +93,17 @@
  const double _kRouteGlowW = _kRouteStrokeW + 9;
  
@@ -158,24 +158,69 @@
      // Show the NEXT upcoming maneuver (what to do next), not the current step
      // that was just executed.  The distance countdown (_distToNextManeuverM) is
      // already the distance to that next step, so instruction and distance match.
-@@ -5105,11 +5182,14 @@
+@@ -5105,12 +5182,16 @@
              ),
            ),
  
 -          // ── NAV INSTRUCTION (full-width, top edge-to-edge) ─────────────────
 +          // ── NAV INSTRUCTION ───────────────────────────────────────────────
-+          // VOYAGER: docked top-right (no `left: 0`) rather than stretched
++          // VOYAGER: docked top-left (no `right: 0`) rather than stretched
 +          // edge-to-edge — the card sizes to its own content instead of a
 +          // bar spanning the top of the map, freeing the top-centre for the
-+          // map itself.
++          // map itself. Left, not right, so it never shares a corner with the
++          // voice-mute toggle below, which is independently docked top-right.
            if (_isNavigating && currentStep != null)
              Positioned(
                top: 0,
--              left: 0,
-               right: 0,
+               left: 0,
+-              right: 0,
                child: NavInstruction(
                    step: currentStep,
-@@ -5140,25 +5220,29 @@
+                   nextStep:
+@@ -5122,13 +5203,35 @@
+                   stepIdx: _currentStepIdx,
+                   colors: c,
+                   topInset: topInset,
+-                  distToNextM: _distToNextManeuverM,
+-                  voiceMuted: _voiceMuted,
+-                  onToggleVoice: () {
+-                    setState(() => _voiceMuted = !_voiceMuted);
+-                    Hive.box('settings').put('voiceEnabled', !_voiceMuted);
+-                    if (_voiceMuted) _tts.stop();
+-                  }),
++                  distToNextM: _distToNextManeuverM),
++            ),
++
++          // ── VOICE MUTE TOGGLE ────────────────────────────────────────────
++          // VOYAGER: independently docked top-right, level with the nav
++          // instruction card rather than embedded inside it. Embedded, it
++          // inherited that card's own width — which shrank to fit its content
++          // once the card stopped spanning the screen — and ended up floating
++          // wherever that happened to leave it rather than at a predictable
++          // spot a driver's hand can find without looking.
++          if (_isNavigating && currentStep != null)
++            Positioned(
++              top: topInset * 0.5 + 4,
++              right: 10 + voyagerCutoutR,
++              child: MapFab(
++                onTap: () {
++                  setState(() => _voiceMuted = !_voiceMuted);
++                  Hive.box('settings').put('voiceEnabled', !_voiceMuted);
++                  if (_voiceMuted) _tts.stop();
++                },
++                colors: c,
++                child: Icon(
++                    _voiceMuted
++                        ? Icons.volume_off_rounded
++                        : Icons.volume_up_rounded,
++                    color:
++                        c.onAccent.withValues(alpha: _voiceMuted ? 0.45 : 1.0),
++                    size: 22),
++              ),
+             ),
+ 
+           // ── SEARCH BAR ────────────────────────────────────────────────────
+@@ -5140,25 +5243,29 @@
                top: topInset + 12,
                left: 16,
                right: 16,
@@ -224,7 +269,7 @@
              ),
  
            // ── SEARCH RESULTS / NEARBY / HISTORY ────────────────────────────────
-@@ -5171,6 +5255,7 @@
+@@ -5171,6 +5278,7 @@
                // running off the bottom of the screen.
                child: ConstrainedBox(
                  constraints: BoxConstraints(
@@ -232,7 +277,7 @@
                      maxHeight: MediaQuery.of(context).size.height * 0.62),
                  child: SingleChildScrollView(
                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-@@ -5217,8 +5302,7 @@
+@@ -5217,8 +5325,7 @@
                      // behind it. They are two different "nothing typed yet"
                      // panels (favourite shortcuts, recent searches) and belong
                      // on screen together, not competing for the same slot.
@@ -242,44 +287,50 @@
                        SearchHistoryList(
                          history: _history,
                          favorites: const [],
-@@ -5280,12 +5364,31 @@
-               // (14 padding + 110 speedometer), so this clears it by twelve
-               // pixels and no more — anchored to the bottom rather than to a
-               // fraction of screen height, which drifted between devices.
+@@ -5275,17 +5382,31 @@
+           // mode, and a street name upside down is worse than none.
+           if (_isNavigating && _currentStreetName != null)
+             Positioned(
+-              // Sits in the gap between the speed/ETA panel and the
+-              // speed-limit sign. The panel's top edge is at 124 + inset
+-              // (14 padding + 110 speedometer), so this clears it by twelve
+-              // pixels and no more — anchored to the bottom rather than to a
+-              // fraction of screen height, which drifted between devices.
 -              bottom: 136 + bottomInset,
-+              // VOYAGER: sits beside the right-hand button column at the
-+              // bottom edge, not centred.
-+              //
-+              // Centred and well clear of the bottom is right for a phone held
-+              // upright with nothing else on screen. Under Voyager's floating
-+              // chrome, centred is the middle of the picture — directly over
-+              // the road ahead and over the cursor the driver is steering by.
-+              // Down in the corner it is still readable at a glance and covers
-+              // nothing that matters.
-+              //
-+              // VOYAGER: level with the FAB column (88 + inset + 12, the same
-+              // figure the left FABs use) rather than a full chrome-height
-+              // above it. Stacked on the full height it floated well clear of
-+              // everything, disconnected from any other control; brought down
-+              // to the FABs' own row it reads as part of the same band of
-+              // controls. Still right-aligned, so it stays clear of Voyager's
-+              // own centred collapse handle at the very bottom.
-+              bottom: 88 + voyagerSideInset + 12,
-               left: 0,
+-              left: 0,
 -              right: 0,
 -              child: Center(
 -                child: CurrentStreetLabel(
 -                    name: _currentStreetName!, colors: c),
-+              // Clears the FAB column: its own right offset, plus the 52 px
-+              // button, plus a gap.
-+              right: 74 + voyagerCutoutR,
++              // VOYAGER: two different homes, because the nav panel that
++              // anchors both of them sits in two different places.
++              //
++              // Landscape: level with Voyager's own chrome row (12 +
++              // voyagerSideInset, the same figure the right FABs use) rather
++              // than a full chrome-height above it — stacked on the full
++              // height it floated well clear of everything, disconnected
++              // from any other control. Still right-aligned, clear of
++              // Voyager's own centred collapse handle at the very bottom.
++              //
++              // Portrait: the nav panel and the speed-limit sign are both
++              // left-anchored, one above the other, with a gap between them
++              // that has nothing in it — this sits in that gap, left-aligned
++              // like its neighbours instead of stranded on the opposite side
++              // of the screen from both.
++              bottom: voyagerLandscape
++                  ? 12 + voyagerSideInset
++                  : 108 + voyagerPanelInset,
++              left: voyagerLandscape ? null : 16 + voyagerCutoutL,
++              right: voyagerLandscape ? 74 + voyagerCutoutR : null,
 +              child: Align(
-+                alignment: Alignment.centerRight,
++                alignment: voyagerLandscape
++                    ? Alignment.centerRight
++                    : Alignment.centerLeft,
 +                child: CurrentStreetLabel(name: _currentStreetName!, colors: c),
                ),
              ),
  
-@@ -5299,15 +5402,14 @@
+@@ -5299,15 +5420,14 @@
            // be got rid of is one they stop reading.
            if (!_ztlNoticeDismissed && (_inZtl || _ztlPassingBy != null))
              Positioned(
@@ -297,7 +348,7 @@
                  child: GestureDetector(
                    // Vertical swipes dismiss too, without a Dismissible of
                    // their own: nesting two would leave neither able to claim
-@@ -5328,21 +5430,23 @@
+@@ -5328,21 +5448,23 @@
                ),
              ),
  
@@ -329,7 +380,7 @@
                  MapFab(
                      onTap: _openPlanner,
                      colors: c,
-@@ -5420,8 +5524,14 @@
+@@ -5420,8 +5542,14 @@
            // ── RIGHT FABs ────────────────────────────────────────────────────────
            if (!_showSearch && !_showAlternatives && !_showPreview)
              Positioned(
@@ -346,7 +397,7 @@
                child: Column(mainAxisSize: MainAxisSize.min, children: [
                  CompassFab(
                    rotDeg: _camRotDeg,
-@@ -5451,16 +5561,6 @@
+@@ -5451,16 +5579,6 @@
                                : c.onAccent.withValues(alpha: 0.38),
                            size: 22),
                  ),
@@ -363,7 +414,7 @@
                  if (_isNavigating) ...[
                    const SizedBox(height: 8),
                    // Adding a stop mid-journey takes the place the volume
-@@ -5473,6 +5573,12 @@
+@@ -5473,6 +5591,12 @@
                        colors: c,
                        child: Icon(Icons.add_location_alt_outlined,
                            color: c.onAccent, size: 22)),
@@ -376,7 +427,7 @@
                  ],
                ]),
              ),
-@@ -5480,7 +5586,7 @@
+@@ -5480,7 +5604,7 @@
            // ── ARRIVAL BANNER ───────────────────────────────────────────────────
            if (_showArrivalBanner)
              Positioned(
@@ -385,27 +436,37 @@
                left: 24,
                right: 24,
                child: Material(
-@@ -5518,8 +5624,8 @@
+@@ -5518,8 +5642,14 @@
            // user is looking at, and it floated on top of the preview card.
            if (_currentSpeedLimit != null && _showsSpeedLimitSign)
              Positioned(
 -              bottom: 150 + bottomInset,
 -              left: 16,
-+              bottom: 150 + voyagerPanelInset,
++              // VOYAGER: in landscape, roughly mid-screen rather than tucked
++              // just above the nav panel — that corner is already busy with
++              // the panel itself and, now, the street-name bubble sharing its
++              // gap. Portrait is unchanged: nothing else competes for that
++              // spot there.
++              top: voyagerLandscape ? voyagerSize.height / 2 - 40 : null,
++              bottom: voyagerLandscape ? null : 150 + voyagerPanelInset,
 +              left: 16 + voyagerCutoutL,
                child: SpeedLimitSign(_currentSpeedLimit!),
              ),
  
-@@ -5532,7 +5638,7 @@
+@@ -5532,7 +5662,11 @@
                  ? NavPanel(
                      route: _route!,
                      speed: _speed,
 -                    bottomInset: bottomInset,
-+                    bottomInset: voyagerPanelInset,
++                    // VOYAGER: shares Voyager's own row in landscape, same as
++                    // MapBottomBar and the FAB columns — see voyagerSideInset.
++                    // Stacked above the chrome in portrait, where the pill is
++                    // wide enough that sharing the row would overlap it.
++                    bottomInset: voyagerSideInset,
                      colors: c,
                      onStop: _showExitNavigationDialog,
                      remainingDistM: _remainingDistM,
-@@ -5549,7 +5655,7 @@
+@@ -5549,7 +5683,7 @@
                          wikiQuery: _placeWikiQuery,
                          openingHours: _placeOpeningHours,
                          loading: _placeLoading,
@@ -414,7 +475,7 @@
                          colors: c,
                          onNavigate: () {
                            // Capture values BEFORE _closePlaceInfo() nulls them out.
-@@ -5569,7 +5675,7 @@
+@@ -5569,7 +5703,7 @@
                              label: _pendingLabel,
                              trafficEvents: _routeTrafficEvents(_previewRoute!),
                              trafficStatus: _trafficStatus(_previewRoute!),
@@ -423,7 +484,7 @@
                              colors: c,
                              transportMode: _transportMode,
                              onStart: _confirmPreview,
-@@ -5581,7 +5687,7 @@
+@@ -5581,7 +5715,7 @@
                                  itineraries: _transitItineraries,
                                  selected: _selectedTransit,
                                  colors: c,
@@ -432,7 +493,7 @@
                                  label: _pendingLabel,
                                  failed: _transitFailed,
                                  onSelect: (i) {
-@@ -5594,31 +5700,39 @@
+@@ -5594,31 +5728,39 @@
                                  onModeChanged: _recalculateForMode,
                                )
                              : _showAlternatives
@@ -497,7 +558,7 @@
            ),
  
            // ── ROUTE CALCULATION OVERLAY ────────────────────────────────────────
-@@ -5687,8 +5801,8 @@
+@@ -5687,8 +5829,8 @@
    /// waiting for the next GPS fix or the next trip.
    void _applyScreenPolicy() {
      final box = Hive.box('settings');

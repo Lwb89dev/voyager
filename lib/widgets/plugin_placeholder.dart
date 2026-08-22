@@ -57,7 +57,15 @@ class PluginPlaceholder extends StatelessWidget {
                 const SizedBox(height: AutomotiveConfig.sectionGap),
                 FilledButton.icon(
                   onPressed: onRetry,
-                  icon: const Icon(Icons.refresh_rounded),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 28, vertical: 18),
+                    textStyle: const TextStyle(
+                      fontSize: AutomotiveConfig.secondaryTextSize,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 26),
                   label: Text(VoyagerStrings.of(context).retry),
                 ),
               ],

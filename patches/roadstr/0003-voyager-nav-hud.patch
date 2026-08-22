@@ -1,6 +1,31 @@
 --- a/lib/widgets/nav/nav_hud.dart	2026-08-19 22:09:08.455050201 +0200
-+++ b/lib/widgets/nav/nav_hud.dart	2026-08-21 14:36:10.292013047 +0200
-@@ -55,12 +55,34 @@
++++ b/lib/widgets/nav/nav_hud.dart	2026-08-22 08:35:19.666528389 +0200
+@@ -8,7 +8,6 @@
+ import '../../l10n/app_localizations.dart';
+ import '../../services/routing_service.dart';
+ import '../../theme/app_theme.dart';
+-import '../map/map_chrome.dart';
+ import '../../utils/units.dart';
+ import '../speedometer_widget.dart';
+ import 'maneuver_symbol.dart';
+@@ -38,29 +37,33 @@
+     this.distToNextStepM = 0,
+     this.topInset = 0,
+     this.distToNextM = 0,
+-    this.voiceMuted = false,
+-    this.onToggleVoice,
+   });
+ 
+-  /// Voice guidance state and toggle.
+-  ///
+-  /// Rendered at the end of this column rather than positioned by hand on the
+-  /// stack: it must sit below the next-step tile, and that tile's height moves
+-  /// with orientation, text length, and whether it is shown at all. Anchoring
+-  /// it to the layout keeps it right without a magic offset that would drift
+-  /// the first time any of those changed.
+-  final bool voiceMuted;
+-  final VoidCallback? onToggleVoice;
+-
    @override
    Widget build(BuildContext context) {
      final l = AppLocalizations.of(context);
@@ -32,16 +57,10 @@
 +    final fsMain = land ? 16.0 : 26.0;
 +    final fsSub = land ? 12.5 : 19.0;
 +    final vPad = land ? 6.0 : 20.0;
-+    // The next-manoeuvre preview is dropped in landscape: it is a second card
-+    // costing another ~14% of the height to say what happens *after* the thing
-+    // the driver is currently doing. The spoken guidance still announces it,
-+    // and it returns the moment the device is upright.
-+    final showNext =
-+        !land && nextStep != null && nextStep!.direction != 'arrive';
      // For long straight sections (highway, state road, etc.) display the live
      // remaining distance more prominently so the driver knows how far to go.
      final liveDist = distToNextM > 0 ? distToNextM : step.distanceM;
-@@ -84,8 +106,14 @@
+@@ -84,8 +87,14 @@
          // Half the status-bar inset, plus enough to clear the clock and
          // battery icons that sit in it. Only the panel's rounded top edge
          // reaches into that band; its text starts below them.
@@ -58,10 +77,33 @@
          decoration: BoxDecoration(
            // The gradient is the "modern" themes' whole point, and the driving
            // panels are where it earns its place. Null on every other theme,
-@@ -160,65 +188,66 @@
-             if (showNext)
-               Container(
-                 margin: const EdgeInsets.only(left: 10),
+@@ -137,107 +146,12 @@
+               ])),
+         ]),
+       ),
+-      // ── Next-step preview tile (left-anchored, own background) ─────────────
+-      // Fixed width = exactly half the panel above (which is edge-to-edge,
+-      // i.e. half the screen width) so the tile never grows with long text —
+-      // it stays half as wide as the main instruction bar. Long instructions
+-      // wrap over the available lines and only then ellipsise.
+-      //
+-      // Sizing is a quarter shorter than it used to be (vertical padding
+-      // 28→20, icon 48→36, type 26/22→20/17): the tile is a preview of what
+-      // comes after the manoeuvre, so it must not eat the map. The type shrank
+-      // in step with the box so the same instructions still fit on three lines.
+-      // Ten pixels under the main panel: the next-step tile on the left and
+-      // the voice toggle on the right, in one row. They shared a column
+-      // before, which pushed the toggle below the tile and left it hanging
+-      // over the map; side by side they cannot collide and the toggle sits
+-      // where the eye already goes for the other controls.
+-      Padding(
+-        padding: const EdgeInsets.only(top: 10),
+-        child: Row(
+-          crossAxisAlignment: CrossAxisAlignment.start,
+-          children: [
+-            if (showNext)
+-              Container(
+-                margin: const EdgeInsets.only(left: 10),
 -            // 15% narrower than the half-screen tile this used to be, so it
 -            // covers less map. Type and padding come down with it rather than
 -            // the text being clipped: the same words still fit in the same
@@ -92,66 +134,7 @@
 -                size: land ? 26 : 36,
 -                colors: colors,
 -                showBackground: false,
-+                // 15% narrower than the half-screen tile this used to be, so it
-+                // covers less map. Type and padding come down with it rather than
-+                // the text being clipped: the same words still fit in the same
-+                // number of lines, just set slightly smaller.
-+                width: MediaQuery.of(context).size.width * 0.425,
-+                padding: EdgeInsets.symmetric(
-+                    horizontal: land ? 13 : 20, vertical: land ? 12 : 18),
-+                decoration: BoxDecoration(
-+                  gradient: colors.panelGradient,
-+                  color: colors.panelGradient == null ? colors.surface3 : null,
-+                  // Rounded on every corner now that it floats clear of the panel
-+                  // above, and a step smaller in radius, edge and shadow than the
-+                  // main panel — subordinate by weight rather than only by size.
-+                  borderRadius: BorderRadius.circular(16),
-+                  border: Border.all(
-+                      color: colors.panelEdge.withValues(alpha: 0.5), width: 1),
-+                  boxShadow: [
-+                    BoxShadow(
-+                        color: Colors.black.withValues(alpha: 0.12),
-+                        blurRadius: 16,
-+                        spreadRadius: -3,
-+                        offset: const Offset(0, 4))
-+                  ],
-+                ),
-+                child: Row(children: [
-+                  ManeuverSymbol(
-+                    step: nextStep!,
-+                    size: land ? 26 : 36,
-+                    colors: colors,
-+                    showBackground: false,
-+                  ),
-+                  const SizedBox(width: 10),
-+                  // Expanded (not Flexible) so the text takes the whole remaining
-+                  // width of the fixed tile and wraps there, instead of letting the
-+                  // Row grow to fit long instructions.
-+                  Expanded(
-+                      child: Column(
-+                    crossAxisAlignment: CrossAxisAlignment.start,
-+                    mainAxisSize: MainAxisSize.min,
-+                    children: [
-+                      // "then …" makes it unmistakable that this is the manoeuvre
-+                      // AFTER the one in the main banner, not the current one.
-+                      Text(
-+                          l.thenManeuver(_uncapitalised(nextStep!.instruction)),
-+                          style: TextStyle(
-+                              color: colors.textPrimary,
-+                              fontSize: land ? 12 : 18,
-+                              fontWeight: FontWeight.w600),
-+                          maxLines: land ? 2 : 3,
-+                          overflow: TextOverflow.ellipsis),
-+                      const SizedBox(height: 3),
-+                      Text(_distLabel(distToNextStepM, ''),
-+                          style: TextStyle(
-+                              color: colors.textSecondary,
-+                              fontSize: land ? 10 : 15,
-+                              fontWeight: FontWeight.w500)),
-+                    ],
-+                  )),
-+                ]),
-               ),
+-              ),
 -              const SizedBox(width: 10),
 -              // Expanded (not Flexible) so the text takes the whole remaining
 -              // width of the fixed tile and wraps there, instead of letting the
@@ -180,10 +163,75 @@
 -              )),
 -            ]),
 -          ),
-             const Spacer(),
-             if (onToggleVoice != null)
-               Padding(
-@@ -365,20 +394,63 @@
+-            const Spacer(),
+-            if (onToggleVoice != null)
+-              Padding(
+-                padding: const EdgeInsets.only(right: 12),
+-                child: MapFab(
+-                  onTap: onToggleVoice!,
+-                  colors: colors,
+-                  child: Icon(
+-                      voiceMuted
+-                          ? Icons.volume_off_rounded
+-                          : Icons.volume_up_rounded,
+-                      color: colors.onAccent
+-                          .withValues(alpha: voiceMuted ? 0.45 : 1.0),
+-                      size: 22),
+-                ),
+-              ),
+-          ],
+-        ),
+-      ),
++      // VOYAGER: the next-step preview tile and the voice-mute toggle that
++      // used to share this row are both gone from here. `showNext` is always
++      // false (land is always true), so the tile never rendered in Voyager
++      // to begin with; the toggle is now docked independently in
++      // map_screen.dart, top-right, rather than trailing whatever width this
++      // card happened to have.
+     ]);
+   }
+ 
+@@ -273,15 +187,19 @@
+ }
+ 
+ /// Height of the stop-navigation button.
+-const double _stopBtnH = 66.0;
++///
++/// VOYAGER: halved from 66 — full-size, this and the rest of the nav panel
++/// were the single largest thing in the card, and freeing that space was
++/// worth more than keeping every control at the automotive touch-target
++/// floor. It is still tapped with intent, not brushed by accident, so it
++/// does not need to be as large as a control reached for at speed.
++const double _stopBtnH = 33.0;
+ const Color _stopBtnRed = Color(0xFFFF4444);
+ 
+-/// Vertical wash for the stop button, written as (pixels from the top, how
+-/// far to white at that point).
+-///
+-/// Absolute pixels rather than fractions because the shape was tuned by eye
+-/// against the real control: "1 px of red then 6 px to 46% white" is the
+-/// instruction, and fractions would hide it.
++/// Vertical wash for the stop button, as fractions of [_stopBtnH] (the ramp
++/// was originally tuned by eye in absolute pixels against a 66 dp button;
++/// expressed as fractions here, it keeps the same proportions at any size
++/// instead of the stops overshooting a shorter button).
+ ///
+ /// The curve is front-loaded on purpose. A straight ramp puts a 50% pink
+ /// through the middle of the button, and pink — not white — becomes the
+@@ -289,9 +207,9 @@
+ /// to near-white while keeping the transition free of any visible step.
+ const List<(double, double)> _stopBtnRamp = [
+   (0.0, 0.72), // already mostly white at the top edge — no red cap at all
+-  (22.0, 0.87),
+-  (34.0, 0.96),
+-  (56.0, 1.00), // pure white for the last 10 px
++  (_stopBtnH * (22.0 / 66.0), 0.87),
++  (_stopBtnH * (34.0 / 66.0), 0.96),
++  (_stopBtnH * (56.0 / 66.0), 1.00), // pure white for the last stretch
+   (_stopBtnH, 1.00),
+ ];
+ 
+@@ -365,20 +283,63 @@
          '${arr.minute.toString().padLeft(2, '0')}';
    }
  
@@ -252,7 +300,7 @@
      return Container(
        decoration: BoxDecoration(
          gradient: colors.panelGradient,
-@@ -394,18 +466,30 @@
+@@ -394,18 +355,30 @@
          boxShadow: colors.panelShadow,
        ),
        padding: EdgeInsets.only(left: 18, right: 14, top: vTop, bottom: vBot),
@@ -276,12 +324,13 @@
              size: speedoSz,
              speedLimit: speedLimit,
              style: speedometerStyle),
-         const SizedBox(width: 12),
+-        const SizedBox(width: 12),
 -        Expanded(
 -            child: Column(
 -                crossAxisAlignment: CrossAxisAlignment.start,
 -                mainAxisSize: MainAxisSize.min,
 -                children: [
++        const SizedBox(width: 8),
 +        Column(
 +            crossAxisAlignment: CrossAxisAlignment.start,
 +            mainAxisSize: MainAxisSize.min,
@@ -289,7 +338,7 @@
                // Time to arrival leads. What a driver is deciding — whether to
                // stop, whether they will make an appointment — depends on how
                // long is left, not on how many kilometres remain; the distance
-@@ -437,7 +521,7 @@
+@@ -437,7 +410,7 @@
                            fontWeight: FontWeight.w600)),
                  ],
                ]),
@@ -298,19 +347,30 @@
          // Stop navigation
          GestureDetector(
            onTap: onStop,
-@@ -451,8 +535,7 @@
+@@ -445,14 +418,13 @@
+               // Upright: narrow at the base and tall, so it reads as a
+               // distinct control rather than as another wide info tile
+               // competing with the figures beside it.
+-              width: 46,
++              width: 23,
+               height: _stopBtnH,
+               alignment: Alignment.center,
                decoration: BoxDecoration(
                  gradient: _stopBtnGradientFor(colors.isDark),
-                 borderRadius: BorderRadius.circular(14),
+-                borderRadius: BorderRadius.circular(14),
 -                border: Border.all(
 -                    color: _stopBtnRed.withValues(alpha: 0.45)),
++                borderRadius: BorderRadius.circular(9),
 +                border: Border.all(color: _stopBtnRed.withValues(alpha: 0.45)),
                ),
                child: Icon(Icons.close_rounded,
                    // Brighter red on the dark body, where the deeper shade
-@@ -462,7 +545,5 @@
+@@ -460,9 +432,7 @@
+                   color: colors.isDark
+                       ? const Color(0xFFFF6B6B)
                        : const Color(0xFFD32F2F),
-                   size: 26)),
+-                  size: 26)),
++                  size: 14)),
          ),
 -      ]),
 -    );

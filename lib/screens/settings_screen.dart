@@ -212,12 +212,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  MusicPlugin? get _musicPlugin {
+    final music = context.read<PluginService>().byId('music');
+    return music is MusicPlugin ? music : null;
+  }
+
   /// Null when the music plugin never came up — no server, no library, no
   /// audio session, and therefore no equalizer to configure.
-  EqualizerController? get _equalizer {
-    final music = context.read<PluginService>().byId('music');
-    return music is MusicPlugin ? music.equalizer : null;
-  }
+  EqualizerController? get _equalizer => _musicPlugin?.equalizer;
 
   String _musicFolderSummary(VoyagerStrings s) {
     final folders = MusicFolderService.chosenFolders;
@@ -246,6 +248,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _openFolderPicker() async {
     await MusicFolderScreen.show(context);
+    // The music plugin's own state was set once, at app startup — it has no
+    // reason to notice a folder chosen just now on its own. Without this, a
+    // driver who fixed exactly what the Music tab was complaining about
+    // ("cannot read audio files", "no folder chosen") kept seeing the same
+    // stale error until a full app restart.
+    final music = _musicPlugin;
+    if (music != null && music.initializationError != null) {
+      await music.retry();
+    }
     if (mounted) setState(() {});
   }
 
