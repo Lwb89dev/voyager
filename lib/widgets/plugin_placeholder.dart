@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/automotive_config.dart';
+import '../l10n/voyager_strings.dart';
 import '../models/plugin_manifest.dart';
 import '../theme/voyager_theme.dart';
 
@@ -14,7 +15,16 @@ class PluginPlaceholder extends StatelessWidget {
   final PluginManifest manifest;
   final String? error;
 
-  const PluginPlaceholder({super.key, required this.manifest, this.error});
+  /// Re-runs the plugin's own [BasePlugin.retry]. Null while a retry is
+  /// already in flight, so a driver tapping twice does not queue two of them.
+  final VoidCallback? onRetry;
+
+  const PluginPlaceholder({
+    super.key,
+    required this.manifest,
+    this.error,
+    this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +53,14 @@ class PluginPlaceholder extends StatelessWidget {
                   fontSize: AutomotiveConfig.secondaryTextSize,
                 ),
               ),
+              if (failed && onRetry != null) ...[
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(VoyagerStrings.of(context).retry),
+                ),
+              ],
               if (!failed) ...[
                 const SizedBox(height: AutomotiveConfig.sectionGap),
                 const SizedBox(

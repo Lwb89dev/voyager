@@ -22,6 +22,7 @@ import 'package:provider/provider.dart';
 import 'package:roadstr/l10n/app_localizations.dart';
 import 'package:roadstr/providers/locale_provider.dart';
 import 'package:roadstr/theme/theme_provider.dart';
+import 'package:roadstr/widgets/speedometer_widget.dart';
 
 import 'l10n/voyager_strings.dart';
 import 'plugins/music/music_plugin.dart';
@@ -77,6 +78,27 @@ Future<void> main() async {
 
 Future<Widget> _buildApp() async {
   final box = Hive.box('settings');
+  // Roadstr's own default is "classic" — a thick gauge ring that leaves the
+  // number itself fairly small. "minimal" (a thin progress ring) gives the
+  // digits most of the circle instead, which reads better at the smaller
+  // size Voyager's compact nav panel uses. Seeded once, only if the user
+  // has never touched the setting themselves — set explicitly, in Roadstr's
+  // own settings screen or Voyager's, this is never overwritten.
+  if (!box.containsKey(SpeedometerStyle.storageKey)) {
+    box.put(SpeedometerStyle.storageKey, SpeedometerStyle.minimal.name);
+  }
+  // Same seed-once rule for imperial units — 'imperialUnits' is Roadstr's own
+  // key (Units.imperial reads it directly), shared rather than duplicated so
+  // one toggle, in either app's settings, changes navigation and weather
+  // together. Defaults to on only for the one country where a driver reading
+  // "22°C" would have to stop and convert it: region, not language, decides
+  // this, since plenty of US English speakers exist elsewhere and plenty of
+  // people in the US have the device set to a language other than English.
+  if (!box.containsKey('imperialUnits')) {
+    final region =
+        WidgetsBinding.instance.platformDispatcher.locale.countryCode;
+    box.put('imperialUnits', region == 'US');
+  }
   final config = OpenSourceConfig.load();
 
   // Roadstr's own providers: MapScreen reads ThemeProvider directly, and both
@@ -88,7 +110,8 @@ Future<Widget> _buildApp() async {
   await localeProvider.init();
 
   final gestures = AutomotiveGestureService()
-    ..remapVolumeKeys = box.get('voyager_remap_volume', defaultValue: false) as bool
+    ..remapVolumeKeys =
+        box.get('voyager_remap_volume', defaultValue: false) as bool
     ..attach();
 
   final ui = AutomotiveUiService();
@@ -150,7 +173,8 @@ Future<void> _openEncryptedSettingsBox() async {
       await storage.write(key: 'hive_settings_key', value: base64Encode(key));
     }
   } catch (_) {
-    throw StateError('Secure storage is unavailable; settings were not opened.');
+    throw StateError(
+        'Secure storage is unavailable; settings were not opened.');
   }
 
   if (key.length != 32) {

@@ -5,9 +5,20 @@ import 'package:roadstr/theme/theme_provider.dart';
 
 import '../../models/gesture_event.dart';
 import '../../models/plugin_manifest.dart';
+import '../../screens/settings_screen.dart';
 import '../../utils/logger_automotive.dart';
 import '../base_plugin.dart';
 import 'navigation_state.dart';
+
+/// Where Roadstr's own bottom bar sends its menu icon, under Voyager.
+///
+/// A static top-level function rather than a closure so it stays a constant
+/// expression — [RoadstrPlugin._map] is `const`, and a lambda capturing
+/// instance state could not be. Pushed with the [BuildContext] MapBottomBar's
+/// own `onTap` already has, not one captured earlier: this is invoked once,
+/// at tap time, and any context from construction time could be stale.
+void _openVoyagerSettings(BuildContext context) => Navigator.of(context)
+    .push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
 
 /// Navigation, provided by Roadstr.
 ///
@@ -30,7 +41,7 @@ class RoadstrPlugin extends BasePlugin {
   /// route. Recreating the widget on every plugin switch would tear all of
   /// that down and re-acquire a GPS fix each time the driver glanced at the
   /// music screen and back.
-  static const Widget _map = MapScreen();
+  static const Widget _map = MapScreen(onOpenAppSettings: _openVoyagerSettings);
 
   // Final for now: Roadstr exposes no route-state stream, so Voyager cannot
   // observe guidance transitions yet and this never changes. It becomes

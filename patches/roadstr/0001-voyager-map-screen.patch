@@ -1,6 +1,25 @@
---- a/lib/screens/map_screen.dart	2026-08-20 20:46:24.115538800 +0200
-+++ b/lib/screens/map_screen.dart	2026-08-21 08:38:31.657686463 +0200
-@@ -194,6 +194,11 @@
+--- a/lib/screens/map_screen.dart	2026-08-21 09:33:04.745720730 +0200
++++ b/lib/screens/map_screen.dart	2026-08-22 07:52:18.961363453 +0200
+@@ -93,7 +93,17 @@
+ const double _kRouteGlowW = _kRouteStrokeW + 9;
+ 
+ class MapScreen extends StatefulWidget {
+-  const MapScreen({super.key});
++  // VOYAGER: overrides where MapBottomBar's menu icon leads. Left null,
++  // MapBottomBar pushes Roadstr's own SettingsScreen — correct for Roadstr
++  // running standalone, wrong here, where Voyager already ships its own
++  // combined settings screen (map theme, Kokoro/Vosk downloads and all)
++  // reachable from its own chrome. Without this override the two screens
++  // were both reachable, both changing some of the same underlying values
++  // (Kokoro's Hive-stored gender/speed/volume) through differently-shaped
++  // controls — confusing regardless of the fact that neither one corrupts
++  // the other's state.
++  final void Function(BuildContext)? onOpenAppSettings;
++  const MapScreen({super.key, this.onOpenAppSettings});
+   @override
+   State<MapScreen> createState() => _MapScreenState();
+ }
+@@ -196,6 +206,11 @@
    /// Mutually exclusive with [_camTicker]/[_northTimer] (only one may drive
    /// the map controller at a time); each cancels the others on start.
    Timer? _followTicker;
@@ -12,7 +31,7 @@
    LatLng? _followTargetCenter;
    double _followTargetZoom = 17.0;
    double _followTargetRot = 0.0;
-@@ -1078,7 +1083,7 @@
+@@ -1087,7 +1102,7 @@
      // In heading-up navigation shift the camera ahead so the cursor sits at
      // ~2/5 from the bottom of the screen (more road visible ahead).
      final center = (_isNavigating && _headingMode)
@@ -21,7 +40,7 @@
          : anchor;
      final rot = _headingMode ? -_heading : _camRotDeg;
  
-@@ -1104,14 +1109,21 @@
+@@ -1113,14 +1128,21 @@
    /// Shifts the camera center [heading]° ahead of [gps] by an amount that
    /// places the GPS marker at ~1/3 from the bottom of the screen (more road
    /// ahead, less behind). Only applied in heading-up navigation mode.
@@ -48,7 +67,29 @@
      const degPerM = 1.0 / 111320.0;
      final rad = heading * math.pi / 180.0;
      final dlat = math.cos(rad) * shiftM * degPerM;
-@@ -3674,7 +3686,7 @@
+@@ -2452,7 +2474,9 @@
+   }
+ 
+   Future<void> _requestAlternatives(LatLng destination,
+-      {String? label, LatLng? fromPosition, List<LatLng> via = const []}) async {
++      {String? label,
++      LatLng? fromPosition,
++      List<LatLng> via = const []}) async {
+     final requestGeneration = ++_routeRequestGeneration;
+     // Block navigation when GPS hasn't acquired a real fix yet.
+     // Using the Italy fallback (42.5, 12.5) as origin would produce a useless
+@@ -2783,8 +2807,8 @@
+   /// bus with a driving route and no indication that it had done so.
+   Future<void> _planTransit(
+       LatLng origin, LatLng destination, int requestGeneration) async {
+-    final result = await const TransitService()
+-        .plan(from: origin, to: destination);
++    final result =
++        await const TransitService().plan(from: origin, to: destination);
+     if (!mounted || requestGeneration != _routeRequestGeneration) return;
+ 
+     setState(() {
+@@ -3684,7 +3708,7 @@
      // keep whatever rotation the user set so they don't lose their view.
      final rot = (_isNavigating || _headingMode) ? -_heading : _camRotDeg;
      final center = (_isNavigating && _headingMode)
@@ -57,7 +98,7 @@
          : _position;
      _animateCamera(toCenter: center, toZoom: _camZoom, toRot: rot);
    }
-@@ -4648,6 +4660,59 @@
+@@ -4658,6 +4682,59 @@
      final c = RoadstrColors.of(context);
      final topInset = MediaQuery.of(context).viewPadding.top;
      final bottomInset = MediaQuery.of(context).viewPadding.bottom;
@@ -117,29 +158,73 @@
      // Show the NEXT upcoming maneuver (what to do next), not the current step
      // that was just executed.  The distance countdown (_distToNextManeuverM) is
      // already the distance to that next step, so instruction and distance match.
-@@ -5130,7 +5195,11 @@
+@@ -5105,11 +5182,14 @@
+             ),
+           ),
+ 
+-          // ── NAV INSTRUCTION (full-width, top edge-to-edge) ─────────────────
++          // ── NAV INSTRUCTION ───────────────────────────────────────────────
++          // VOYAGER: docked top-right (no `left: 0`) rather than stretched
++          // edge-to-edge — the card sizes to its own content instead of a
++          // bar spanning the top of the map, freeing the top-centre for the
++          // map itself.
+           if (_isNavigating && currentStep != null)
+             Positioned(
+               top: 0,
+-              left: 0,
+               right: 0,
+               child: NavInstruction(
+                   step: currentStep,
+@@ -5140,25 +5220,29 @@
                top: topInset + 12,
                left: 16,
                right: 16,
 -              child: PlaceSearchBar(
+-                  controller: _searchController,
+-                  colors: c,
+-                  onFocus: () {
+-                    _loadFavorites();
+-                    setState(() => _showSearch = true);
+-                  },
+-                  onChanged: _onSearchChanged,
+-                  onSubmitted: _onSearchSubmit,
+-                  onClear: () {
+-                    _searchController.clear();
+-                    _pickingWaypoint = false;
+-                    setState(() {
+-                      _searchResults = [];
+-                      _showSearch = false;
+-                      _nearbyCategory = null;
+-                    });
+-                    FocusScope.of(context).unfocus();
+-                  }),
 +              child: Center(
 +                  child: ConstrainedBox(
 +                      constraints:
 +                          BoxConstraints(maxWidth: voyagerOverlayMaxWidth),
 +                      child: PlaceSearchBar(
-                   controller: _searchController,
-                   colors: c,
-                   onFocus: () {
-@@ -5148,7 +5217,7 @@
-                       _nearbyCategory = null;
-                     });
-                     FocusScope.of(context).unfocus();
--                  }),
-+                  }))),
++                          controller: _searchController,
++                          colors: c,
++                          onFocus: () {
++                            _loadFavorites();
++                            setState(() => _showSearch = true);
++                          },
++                          onChanged: _onSearchChanged,
++                          onSubmitted: _onSearchSubmit,
++                          onClear: () {
++                            _searchController.clear();
++                            _pickingWaypoint = false;
++                            setState(() {
++                              _searchResults = [];
++                              _showSearch = false;
++                              _nearbyCategory = null;
++                            });
++                            FocusScope.of(context).unfocus();
++                          }))),
              ),
  
            // ── SEARCH RESULTS / NEARBY / HISTORY ────────────────────────────────
-@@ -5161,6 +5230,7 @@
+@@ -5171,6 +5255,7 @@
                // running off the bottom of the screen.
                child: ConstrainedBox(
                  constraints: BoxConstraints(
@@ -147,7 +232,17 @@
                      maxHeight: MediaQuery.of(context).size.height * 0.62),
                  child: SingleChildScrollView(
                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-@@ -5270,10 +5340,22 @@
+@@ -5217,8 +5302,7 @@
+                     // behind it. They are two different "nothing typed yet"
+                     // panels (favourite shortcuts, recent searches) and belong
+                     // on screen together, not competing for the same slot.
+-                    if (_searchController.text.isEmpty &&
+-                        _history.isNotEmpty)
++                    if (_searchController.text.isEmpty && _history.isNotEmpty)
+                       SearchHistoryList(
+                         history: _history,
+                         favorites: const [],
+@@ -5280,12 +5364,31 @@
                // (14 padding + 110 speedometer), so this clears it by twelve
                // pixels and no more — anchored to the bottom rather than to a
                // fraction of screen height, which drifted between devices.
@@ -161,19 +256,30 @@
 +              // the road ahead and over the cursor the driver is steering by.
 +              // Down in the corner it is still readable at a glance and covers
 +              // nothing that matters.
-+              bottom: 18 + voyagerPanelInset,
++              //
++              // VOYAGER: level with the FAB column (88 + inset + 12, the same
++              // figure the left FABs use) rather than a full chrome-height
++              // above it. Stacked on the full height it floated well clear of
++              // everything, disconnected from any other control; brought down
++              // to the FABs' own row it reads as part of the same band of
++              // controls. Still right-aligned, so it stays clear of Voyager's
++              // own centred collapse handle at the very bottom.
++              bottom: 88 + voyagerSideInset + 12,
                left: 0,
 -              right: 0,
 -              child: Center(
+-                child: CurrentStreetLabel(
+-                    name: _currentStreetName!, colors: c),
 +              // Clears the FAB column: its own right offset, plus the 52 px
 +              // button, plus a gap.
 +              right: 74 + voyagerCutoutR,
 +              child: Align(
 +                alignment: Alignment.centerRight,
-                 child: CurrentStreetLabel(
-                     name: _currentStreetName!, colors: c),
++                child: CurrentStreetLabel(name: _currentStreetName!, colors: c),
                ),
-@@ -5289,7 +5371,7 @@
+             ),
+ 
+@@ -5299,15 +5402,14 @@
            // be got rid of is one they stop reading.
            if (!_ztlNoticeDismissed && (_inZtl || _ztlPassingBy != null))
              Positioned(
@@ -182,7 +288,16 @@
                left: 16,
                right: 16,
                child: Dismissible(
-@@ -5318,21 +5400,23 @@
+                 key: ValueKey(
+                     'ztl-${_inZtl ? 'in' : 'near'}-${_ztlName ?? _ztlPassingBy?.name ?? ''}'),
+                 direction: DismissDirection.horizontal,
+-                onDismissed: (_) =>
+-                    setState(() => _ztlNoticeDismissed = true),
++                onDismissed: (_) => setState(() => _ztlNoticeDismissed = true),
+                 child: GestureDetector(
+                   // Vertical swipes dismiss too, without a Dismissible of
+                   // their own: nesting two would leave neither able to claim
+@@ -5328,21 +5430,23 @@
                ),
              ),
  
@@ -214,7 +329,7 @@
                  MapFab(
                      onTap: _openPlanner,
                      colors: c,
-@@ -5410,8 +5494,14 @@
+@@ -5420,8 +5524,14 @@
            // ── RIGHT FABs ────────────────────────────────────────────────────────
            if (!_showSearch && !_showAlternatives && !_showPreview)
              Positioned(
@@ -231,7 +346,7 @@
                child: Column(mainAxisSize: MainAxisSize.min, children: [
                  CompassFab(
                    rotDeg: _camRotDeg,
-@@ -5441,16 +5531,6 @@
+@@ -5451,16 +5561,6 @@
                                : c.onAccent.withValues(alpha: 0.38),
                            size: 22),
                  ),
@@ -248,7 +363,7 @@
                  if (_isNavigating) ...[
                    const SizedBox(height: 8),
                    // Adding a stop mid-journey takes the place the volume
-@@ -5463,6 +5543,12 @@
+@@ -5473,6 +5573,12 @@
                        colors: c,
                        child: Icon(Icons.add_location_alt_outlined,
                            color: c.onAccent, size: 22)),
@@ -261,7 +376,7 @@
                  ],
                ]),
              ),
-@@ -5470,7 +5556,7 @@
+@@ -5480,7 +5586,7 @@
            // ── ARRIVAL BANNER ───────────────────────────────────────────────────
            if (_showArrivalBanner)
              Positioned(
@@ -270,7 +385,7 @@
                left: 24,
                right: 24,
                child: Material(
-@@ -5508,8 +5594,8 @@
+@@ -5518,8 +5624,8 @@
            // user is looking at, and it floated on top of the preview card.
            if (_currentSpeedLimit != null && _showsSpeedLimitSign)
              Positioned(
@@ -281,7 +396,7 @@
                child: SpeedLimitSign(_currentSpeedLimit!),
              ),
  
-@@ -5522,7 +5608,7 @@
+@@ -5532,7 +5638,7 @@
                  ? NavPanel(
                      route: _route!,
                      speed: _speed,
@@ -290,7 +405,7 @@
                      colors: c,
                      onStop: _showExitNavigationDialog,
                      remainingDistM: _remainingDistM,
-@@ -5539,7 +5625,7 @@
+@@ -5549,7 +5655,7 @@
                          wikiQuery: _placeWikiQuery,
                          openingHours: _placeOpeningHours,
                          loading: _placeLoading,
@@ -299,7 +414,7 @@
                          colors: c,
                          onNavigate: () {
                            // Capture values BEFORE _closePlaceInfo() nulls them out.
-@@ -5559,7 +5645,7 @@
+@@ -5569,7 +5675,7 @@
                              label: _pendingLabel,
                              trafficEvents: _routeTrafficEvents(_previewRoute!),
                              trafficStatus: _trafficStatus(_previewRoute!),
@@ -308,7 +423,7 @@
                              colors: c,
                              transportMode: _transportMode,
                              onStart: _confirmPreview,
-@@ -5571,7 +5657,7 @@
+@@ -5581,7 +5687,7 @@
                                  itineraries: _transitItineraries,
                                  selected: _selectedTransit,
                                  colors: c,
@@ -317,28 +432,79 @@
                                  label: _pendingLabel,
                                  failed: _transitFailed,
                                  onSelect: (i) {
-@@ -5587,7 +5673,7 @@
-                             ? RouteAlternativesPanel(
-                                 alternatives: _alternatives,
-                                 selected: _selectedAlt,
--                                bottomInset: bottomInset,
-+                                bottomInset: voyagerPanelInset,
-                                 colors: c,
-                                 transportMode: _transportMode,
-                                 destination: _destination!,
-@@ -5601,7 +5687,14 @@
-                                 onAvoidanceChanged: _toggleAvoidanceRoute,
+@@ -5594,31 +5700,39 @@
+                                 onModeChanged: _recalculateForMode,
                                )
-                             : MapBottomBar(
+                             : _showAlternatives
+-                            ? RouteAlternativesPanel(
+-                                alternatives: _alternatives,
+-                                selected: _selectedAlt,
 -                                bottomInset: bottomInset,
-+                                // VOYAGER: shares Voyager's own row in
-+                                // landscape, where the chrome pill leaves the
-+                                // bottom-left corner clear at its own height;
-+                                // stacks above it in portrait, where the pill
-+                                // runs nearly the full width and a bar at the
-+                                // same height would sit directly behind it —
-+                                // see [voyagerSideInset].
-+                                bottomInset: voyagerSideInset,
-                                 colors: c,
-                                 pubkey: _myPubkey,
-                                 profilePicture: _profilePicture,
+-                                colors: c,
+-                                transportMode: _transportMode,
+-                                destination: _destination!,
+-                                avoidanceEnabled: _avoidanceEnabled,
+-                                avoidanceLoading: _avoidanceLoading,
+-                                onSelect: (i) =>
+-                                    setState(() => _selectedAlt = i),
+-                                onConfirm: _startNavigation,
+-                                onCancel: _cancelAlternatives,
+-                                onModeChanged: _recalculateForMode,
+-                                onAvoidanceChanged: _toggleAvoidanceRoute,
+-                              )
+-                            : MapBottomBar(
+-                                bottomInset: bottomInset,
+-                                colors: c,
+-                                pubkey: _myPubkey,
+-                                profilePicture: _profilePicture,
+-                                hasNostrLogin: _nostrFlavor == 'amber' ||
+-                                    _nostrFlavor == 'nsec',
+-                                onProfileReturn: () =>
+-                                    unawaited(_refreshHomeIdentity())),
++                                ? RouteAlternativesPanel(
++                                    alternatives: _alternatives,
++                                    selected: _selectedAlt,
++                                    bottomInset: voyagerPanelInset,
++                                    colors: c,
++                                    transportMode: _transportMode,
++                                    destination: _destination!,
++                                    avoidanceEnabled: _avoidanceEnabled,
++                                    avoidanceLoading: _avoidanceLoading,
++                                    onSelect: (i) =>
++                                        setState(() => _selectedAlt = i),
++                                    onConfirm: _startNavigation,
++                                    onCancel: _cancelAlternatives,
++                                    onModeChanged: _recalculateForMode,
++                                    onAvoidanceChanged: _toggleAvoidanceRoute,
++                                  )
++                                : MapBottomBar(
++                                    // VOYAGER: shares Voyager's own row in
++                                    // landscape, where the chrome pill leaves the
++                                    // bottom-left corner clear at its own height;
++                                    // stacks above it in portrait, where the pill
++                                    // runs nearly the full width and a bar at the
++                                    // same height would sit directly behind it —
++                                    // see [voyagerSideInset].
++                                    bottomInset: voyagerSideInset,
++                                    colors: c,
++                                    pubkey: _myPubkey,
++                                    profilePicture: _profilePicture,
++                                    hasNostrLogin: _nostrFlavor == 'amber' ||
++                                        _nostrFlavor == 'nsec',
++                                    onProfileReturn: () =>
++                                        unawaited(_refreshHomeIdentity()),
++                                    onMenuTap: widget.onOpenAppSettings),
+           ),
+ 
+           // ── ROUTE CALCULATION OVERLAY ────────────────────────────────────────
+@@ -5687,8 +5801,8 @@
+   /// waiting for the next GPS fix or the next trip.
+   void _applyScreenPolicy() {
+     final box = Hive.box('settings');
+-    final navWantsAwake = _isNavigating &&
+-        (box.get('keepScreenOn', defaultValue: true) as bool);
++    final navWantsAwake =
++        _isNavigating && (box.get('keepScreenOn', defaultValue: true) as bool);
+     final alwaysAwake =
+         box.get('keepScreenOnAlways', defaultValue: false) as bool;
+     if (navWantsAwake || alwaysAwake) {

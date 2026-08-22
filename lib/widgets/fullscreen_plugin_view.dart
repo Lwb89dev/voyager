@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../config/automotive_config.dart';
@@ -30,8 +32,9 @@ class FullscreenPluginView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final plugins =
-        service.visiblePlugins.where((p) => p.manifest.canBeFullscreen).toList();
+    final plugins = service.visiblePlugins
+        .where((p) => p.manifest.canBeFullscreen)
+        .toList();
     if (plugins.isEmpty) return const SizedBox.expand();
 
     final activeIndex = plugins.indexWhere((p) => p.id == service.active?.id);
@@ -62,6 +65,9 @@ class FullscreenPluginView extends StatelessWidget {
         ? PluginPlaceholder(
             manifest: plugin.manifest,
             error: plugin.initializationError,
+            onRetry: plugin.initializationError == null
+                ? null
+                : () => unawaited(plugin.retry()),
           )
         : plugin.buildFullscreenView(context);
 

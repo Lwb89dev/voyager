@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 
 import '../theme/voyager_theme.dart';
 
@@ -18,9 +19,25 @@ import '../theme/voyager_theme.dart';
 class VoyagerScope extends StatelessWidget {
   final Widget child;
 
-  const VoyagerScope({super.key, required this.child});
+  /// True for a screen that is not part of the driving surface — used
+  /// parked, not glanced at mid-drive — where staying dark regardless of the
+  /// user's own light/dark choice reads as a bug rather than a safety
+  /// measure. The dashboard, map, music and podcast panes leave this false:
+  /// see the class doc on [VoyagerTheme.dark] for why they always stay dark.
+  final bool matchAmbient;
+
+  const VoyagerScope(
+      {super.key, required this.child, this.matchAmbient = false});
+
+  static const lightThemeKey = 'voyager_light_theme';
 
   @override
-  Widget build(BuildContext context) =>
-      Theme(data: VoyagerTheme.dark, child: child);
+  Widget build(BuildContext context) {
+    final light = matchAmbient &&
+        (Hive.box('settings').get(lightThemeKey, defaultValue: false) as bool);
+    return Theme(
+      data: light ? VoyagerTheme.light : VoyagerTheme.dark,
+      child: child,
+    );
+  }
 }

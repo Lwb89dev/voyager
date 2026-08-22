@@ -1,7 +1,7 @@
 name: voyager
 description: "Voyager — automotive-first dashboard (navigation, music, weather, voice, phone) built on Roadstr. 100% open-source stack."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -77,6 +77,11 @@ dependencies:
 
   # Version string shown in Settings → Info
   package_info_plus: ^10.2.1
+
+  # Unzips the downloaded Vosk speech-recognition model. Already a transitive
+  # dependency via Roadstr (which uses it for its own imports/exports), pinned
+  # to the same major version rather than left implicit.
+  archive: ^4.0.0
 
 dev_dependencies:
   flutter_test:

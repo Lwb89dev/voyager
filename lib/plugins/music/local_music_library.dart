@@ -164,7 +164,8 @@ class LocalMusicLibrary extends MusicLibrary {
     final segments = file.uri.pathSegments;
     final fileName = segments.last;
     final albumName = segments.length >= 2 ? segments[segments.length - 2] : '';
-    final artistName = segments.length >= 3 ? segments[segments.length - 3] : '';
+    final artistName =
+        segments.length >= 3 ? segments[segments.length - 3] : '';
     final albumId = '$artistName/$albumName';
 
     _byAlbum.putIfAbsent(albumId, () => []).add(MusicTrack(

@@ -12,7 +12,9 @@ import '../base_plugin.dart';
 import 'audio_service_wrapper.dart';
 import 'equalizer_controller.dart';
 import 'jellyfin_client.dart';
+import 'local_music_library.dart';
 import 'media_store_library.dart';
+import 'music_folder_service.dart';
 import 'music_library.dart';
 import 'music_state.dart';
 import 'navidrome_client.dart';
@@ -38,6 +40,11 @@ class MusicPlugin extends BasePlugin {
   MusicState _state = const MusicState.initial();
   bool _ready = false;
   String? _error;
+
+  /// Set alongside [_error] when initialisation failed specifically because
+  /// the audio-file permission was missing — the one failure [retry] can
+  /// actually fix by itself, rather than just trying the same thing again.
+  bool _needsAudioPermission = false;
 
   MusicPlugin({required this.config, this.libraryOverride});
 
@@ -67,6 +74,7 @@ class MusicPlugin extends BasePlugin {
   @override
   Future<void> initialize() async {
     try {
+      _needsAudioPermission = false;
       _audio = await AudioServiceBootstrap.instance();
       _equalizer = EqualizerController(effect: _audio!.equalizer);
       // The platform effect only exists once there is an audio session, so the
@@ -87,9 +95,20 @@ class MusicPlugin extends BasePlugin {
       // greyed-out button, not the dashboard.
       AutomotiveLogger.error('Music', 'initialisation failed', error);
       _error = _describe(error);
+      _needsAudioPermission = error is MusicLibraryUnavailable &&
+          error.problem == MusicLibraryProblem.permissionMissing;
       _state = _state.copyWith(status: MusicStatus.failed, error: _error);
     }
     notifyListeners();
+  }
+
+  /// Re-requests the audio permission first when that is what failed —
+  /// otherwise a driver who granted it from Settings after seeing this
+  /// screen would have to fully restart Voyager for [initialize] to notice.
+  @override
+  Future<void> retry() async {
+    if (_needsAudioPermission) await MusicFolderService.requestAccess();
+    await initialize();
   }
 
   Future<MusicLibrary> _buildLibrary() async {
@@ -160,7 +179,9 @@ class MusicPlugin extends BasePlugin {
     final own = _ownTrack;
     final playing = own != null && (_audio?.player.playing ?? false);
     _state = _state.copyWith(
-      status: own == null ? MusicStatus.idle : (playing ? MusicStatus.playing : MusicStatus.paused),
+      status: own == null
+          ? MusicStatus.idle
+          : (playing ? MusicStatus.playing : MusicStatus.paused),
       current: own,
       clearCurrent: own == null,
     );

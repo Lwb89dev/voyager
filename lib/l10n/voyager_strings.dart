@@ -26,11 +26,12 @@ class VoyagerStrings {
 
   // ── App identity ────────────────────────────────────────────────────────
   String get appName => 'Voyager';
-  String get tagline => _('Your car, your rules.', 'La tua auto, le tue regole.');
+  String get retry => _('Retry', 'Riprova');
+  String get tagline =>
+      _('Your car, your rules.', 'La tua auto, le tue regole.');
 
   // ── Onboarding: welcome ─────────────────────────────────────────────────
-  String get welcomeTitle =>
-      _('Welcome to Voyager', 'Benvenuto in Voyager');
+  String get welcomeTitle => _('Welcome to Voyager', 'Benvenuto in Voyager');
   String get welcomeBody => _(
         'An in-car dashboard that answers to you and to nobody else. No account, no telemetry, no cloud you did not choose yourself.',
         "Un cruscotto per l'auto che risponde a te e a nessun altro. Nessun account, nessuna telemetria, nessun cloud che non hai scelto tu.",
@@ -55,7 +56,8 @@ class VoyagerStrings {
         'Open-Meteo, keyless and free, queried with coordinates rounded so nobody learns where you are heading.',
         'Open-Meteo, gratuito e senza chiave, interrogato con coordinate arrotondate perché nessuno sappia dove stai andando.',
       );
-  String get featurePhoneTitle => _('Calls and messages', 'Chiamate e messaggi');
+  String get featurePhoneTitle =>
+      _('Calls and messages', 'Chiamate e messaggi');
   String get featurePhoneBody => _(
         'Incoming calls and texts appear as large, glanceable cards you can answer without hunting for the phone.',
         'Chiamate e SMS in arrivo compaiono come schede grandi e leggibili a colpo d\'occhio, senza cercare il telefono.',
@@ -84,23 +86,33 @@ class VoyagerStrings {
       );
   String get permGrant => _('Grant', 'Concedi');
   String get permGranted => _('Granted', 'Concesso');
-  String get permOpenSettings =>
-      _('Open settings', 'Apri le impostazioni');
+  String get permOpenSettings => _('Open settings', 'Apri le impostazioni');
   String get permBlocked => _(
         'Android will not ask again — this one has to be switched on in the system settings.',
         'Android non lo chiederà più: va attivato dalle impostazioni di sistema.',
       );
 
   // ── Onboarding: music setup ─────────────────────────────────────────────
-  String get musicSetupTitle => _('Where is your music?', 'Dov\'è la tua musica?');
+  String get musicSetupTitle =>
+      _('Where is your music?', 'Dov\'è la tua musica?');
   String get musicSetupBody => _(
         'Point Voyager at a music server you run yourself, or skip this and play what is already on the device. You can change it later in Settings.',
         'Indica a Voyager un server musicale che gestisci tu, oppure salta e riproduci quello che è già sul dispositivo. Puoi cambiarlo dopo nelle Impostazioni.',
       );
-  String get useLocalFiles => _('Use files on this device', 'Usa i file su questo dispositivo');
+  // ── Onboarding: voice setup ──────────────────────────────────────────────
+  String get voiceSetupTitle => _('Give it a voice', 'Dagli una voce');
+  String get voiceSetupBody => _(
+        'Both are optional and both can be downloaded later from Settings — skip either one now if you would rather do it on Wi-Fi.',
+        'Sono entrambi facoltativi e scaricabili in seguito dalle Impostazioni — salta pure se preferisci farlo con il Wi-Fi.',
+      );
+
+  String get useLocalFiles =>
+      _('Use files on this device', 'Usa i file su questo dispositivo');
   String get chooseMusicFolder =>
       _('Choose your music folder', 'Scegli la cartella della musica');
   String get useThisFolder => _('Use this folder', 'Usa questa');
+  String get folderAdded => _('Added', 'Aggiunta');
+  String folderCount(int count) => _('$count folders', '$count cartelle');
   String get musicFolder => _('Music folder', 'Cartella musica');
   String get folderNotChosen => _('Not chosen', 'Non scelta');
   String get folderUnreadable => _(
@@ -141,9 +153,13 @@ class VoyagerStrings {
         'Switches the map to the dark variant of your theme between sunset and sunrise, computed on the device from your position.',
         'Passa alla variante scura del tuo tema tra tramonto e alba, calcolato sul dispositivo dalla tua posizione.',
       );
+  String get imperialUnits => _('Imperial units', 'Unità imperiali');
+  String get imperialUnitsWhy => _(
+        'Miles, mph and °F instead of kilometres, km/h and °C — for navigation and weather alike. The same setting Roadstr itself uses.',
+        'Miglia, mph e °F al posto di chilometri, km/h e °C — per la navigazione e per il meteo. La stessa impostazione usata da Roadstr.',
+      );
   String get sectionDisplay => _('DISPLAY', 'SCHERMO');
   String get sectionPhone => _('PHONE', 'TELEFONO');
-  String get sectionPrivacy => _('PRIVACY', 'PRIVACY');
   String get sectionInfo => _('INFO', 'INFO');
 
   String get musicBackend => _('Music source', 'Sorgente musicale');
@@ -237,6 +253,42 @@ class VoyagerStrings {
       );
   String get notInstalled => _('Not installed', 'Non installato');
 
+  String get voiceModelDownload => _('Download', 'Scarica');
+  String get voiceModelDownloading => _('Downloading…', 'Download in corso…');
+  String get voiceModelReady => _('Installed', 'Installato');
+  String get voiceModelRetry => _('Retry', 'Riprova');
+  String voiceModelError(String message) =>
+      _('Download failed: $message', 'Download non riuscito: $message');
+  String get voiceModelSkip => _(
+        'You can do this later from Settings.',
+        'Puoi farlo più avanti dalle Impostazioni.',
+      );
+  String get kokoroCardTitle =>
+      _('Neural voice (Kokoro)', 'Voce neurale (Kokoro)');
+  String get kokoroCardBody => _(
+        'A natural-sounding voice for turn-by-turn guidance, generated on the device. Without it, Voyager falls back to the robotic eSpeak-NG.',
+        'Una voce naturale per le indicazioni di guida, generata sul dispositivo. Senza, Voyager usa la voce robotica eSpeak-NG.',
+      );
+  String get kokoroVoiceGender => _('Voice', 'Voce');
+  String get kokoroVoiceFemale => _('Female', 'Femminile');
+  String get kokoroVoiceMale => _('Male', 'Maschile');
+  String get kokoroVoiceSpeed => _('Speed', 'Velocità');
+  String get voskCardTitle =>
+      _('Voice commands (Vosk)', 'Comandi vocali (Vosk)');
+  String get voskCardBody => _(
+        'Downloads the offline speech model. Recognition itself is still in development — see the changelog — so Voyager will not yet act on what it hears.',
+        'Scarica il modello vocale offline. Il riconoscimento vero e proprio è ancora in sviluppo — vedi il changelog — quindi Voyager non agisce ancora su quello che sente.',
+      );
+  String get voskUnsupportedLanguage => _(
+        'No small Vosk model for this language yet.',
+        'Nessun modello Vosk compatto per questa lingua, per ora.',
+      );
+
+  String get lightTheme => _('Light theme', 'Tema chiaro');
+  String get lightThemeWhy => _(
+        'Only this settings screen — parked-use administration, not the driving dashboard. The map, music and podcast panes always stay dark.',
+        'Solo questa schermata — è amministrazione da usare a veicolo fermo, non il cruscotto di guida. Mappa, musica e podcast restano sempre scuri.',
+      );
   String get keepScreenOn => _('Keep the screen on', 'Tieni lo schermo acceso');
   String get keepScreenOnWhy => _(
         'The screen never sleeps while Voyager is in front. Leave this on when the device is powered from the car.',
@@ -248,25 +300,20 @@ class VoyagerStrings {
         'Abbassa la luminosità dopo il tramonto, calcolato sul dispositivo dalla tua posizione: nessuna chiamata di rete.',
       );
 
-  String get wheelControls => _('Steering wheel controls', 'Comandi al volante');
+  String get wheelControls =>
+      _('Steering wheel controls', 'Comandi al volante');
   String get wheelControlsWhy => _(
         'Map the volume rocker on the wheel to previous/next track. Volume itself stays with the car stereo.',
         'Assegna il bilanciere del volume al volante a brano precedente/successivo. Il volume resta allo stereo dell\'auto.',
       );
 
-  String get showCallerId => _('Show incoming calls', 'Mostra chiamate in arrivo');
+  String get showCallerId =>
+      _('Show incoming calls', 'Mostra chiamate in arrivo');
   String get readMessagesAloud =>
       _('Read messages aloud', 'Leggi i messaggi ad alta voce');
   String get readMessagesAloudWhy => _(
         'The sender and the text are spoken once and never stored.',
         'Mittente e testo vengono letti una volta e mai salvati.',
-      );
-
-  String get telemetry => _('Telemetry', 'Telemetria');
-  String get telemetryValue => _('None, permanently', 'Nessuna, in modo permanente');
-  String get privacyBody => _(
-        'Voyager runs no servers of its own. Everything it talks to is either your own machine or a public service you can see listed here.',
-        'Voyager non ha server propri. Tutto ciò con cui parla è una tua macchina oppure un servizio pubblico elencato qui.',
       );
 
   String get infoVersion => _('Version', 'Versione');

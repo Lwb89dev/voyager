@@ -22,6 +22,7 @@ import '../services/plugin_service.dart';
 import '../theme/voyager_theme.dart';
 import 'equalizer_screen.dart';
 import 'music_folder_screen.dart';
+import '../widgets/voice_setup_cards.dart';
 import '../widgets/voyager_scope.dart';
 
 enum MusicBackend { navidrome, jellyfin }
@@ -67,128 +68,147 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final gestures = context.read<AutomotiveGestureService>();
 
     return VoyagerScope(
-      child: Scaffold(
-        backgroundColor: VoyagerColors.background,
-        appBar: AppBar(title: Text(s.settings)),
-        // A Scaffold's body sees the system's insets untouched except for what
-        // its own AppBar already consumed — a display cutout on a long edge in
-        // landscape is left for the body to handle itself. Without this, the
-        // cutout on this screen's own left edge fell across the first column
-        // of every row's icon rather than the margin next to it.
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            children: [
-              _SectionHeader(s.sectionMusic),
-              _NavigationRow(
-                icon: Icons.dns_rounded,
-                title: s.backendNavidrome,
-                value: config.hasNavidrome
-                    ? config.navidromeEndpoint!
-                    : s.backendNone,
-                onTap: () => _openServer(MusicBackend.navidrome),
-              ),
-              _NavigationRow(
-                icon: Icons.movie_filter_rounded,
-                title: s.backendJellyfin,
-                value: config.hasJellyfin
-                    ? config.jellyfinEndpoint!
-                    : s.backendNone,
-                onTap: () => _openServer(MusicBackend.jellyfin),
-              ),
-              _NavigationRow(
-                icon: Icons.sd_storage_rounded,
-                title: s.musicFolder,
-                value: MusicFolderService.chosenFolder ?? s.folderNotChosen,
-                onTap: _openFolderPicker,
-              ),
-              _NavigationRow(
-                icon: Icons.graphic_eq_rounded,
-                title: s.equalizer,
-                value: _equalizerSummary(s),
-                onTap: _openEqualizer,
-              ),
-              const SizedBox(height: AutomotiveConfig.sectionGap),
-              _SectionHeader(s.sectionVoice),
-              _InfoRow(
-                title: s.spokenGuidance,
-                value: config.hasKokoro ? 'Kokoro' : 'eSpeak-NG',
-                subtitle: s.spokenGuidanceWhy,
-              ),
-              _InfoRow(
-                title: s.voiceCommands,
-                value: config.hasVosk ? 'Vosk' : s.notInstalled,
-                subtitle: s.voiceCommandsWhy,
-              ),
-              const SizedBox(height: AutomotiveConfig.sectionGap),
-              _SectionHeader(s.sectionMapTheme),
-              _MapThemeRow(s: s),
-              _SwitchRow(
-                title: s.autoDark,
-                subtitle: s.autoDarkWhy,
-                value: context.watch<ThemeProvider>().autoDarkEnabled,
-                onChanged: context.read<ThemeProvider>().setAutoDarkEnabled,
-              ),
-              const SizedBox(height: AutomotiveConfig.sectionGap),
-              _SectionHeader(s.sectionDisplay),
-              _SwitchRow(
-                title: s.keepScreenOn,
-                subtitle: s.keepScreenOnWhy,
-                value: ui.keepAwake,
-                onChanged: ui.setKeepAwake,
-              ),
-              _SwitchRow(
-                title: s.nightDimming,
-                subtitle: s.nightDimmingWhy,
-                value: ui.nightDimming,
-                onChanged: (value) {
-                  ui.setNightDimming(value);
-                  _box.put('voyager_night_dimming', value);
-                },
-              ),
-              _SwitchRow(
-                title: s.wheelControls,
-                subtitle: s.wheelControlsWhy,
-                value: gestures.remapVolumeKeys,
-                onChanged: (value) => setState(() {
-                  gestures.remapVolumeKeys = value;
-                  _box.put('voyager_remap_volume', value);
-                }),
-              ),
-              const SizedBox(height: AutomotiveConfig.sectionGap),
-              _SectionHeader(s.sectionPrivacy),
-              _InfoRow(
-                title: s.telemetry,
-                value: s.telemetryValue,
-                subtitle: s.privacyBody,
-              ),
-              const SizedBox(height: AutomotiveConfig.sectionGap),
-              _SectionHeader(s.sectionInfo),
-              _InfoRow(title: s.infoVersion, value: _version),
-              _InfoRow(title: s.infoNavigation, value: 'Roadstr · OSRM'),
-              _InfoRow(
-                title: s.infoMaps,
-                value: 'openstreetmap.org',
-                url: 'https://www.openstreetmap.org',
-              ),
-              _InfoRow(
-                title: s.infoWeather,
-                value: 'open-meteo.com',
-                url: 'https://open-meteo.com',
-              ),
-              _InfoRow(title: s.infoSpeech, value: 'Kokoro · eSpeak-NG'),
-              _InfoRow(title: s.infoLicence, value: 'GPL v3'),
-              _InfoRow(
-                title: s.infoSource,
-                value: 'github.com/Lwb89dev/voyager',
-                url: 'https://github.com/Lwb89dev/voyager',
-              ),
-              const SizedBox(height: AutomotiveConfig.gutter),
-              const DonationTile(),
-            ],
+      matchAmbient: true,
+      child: Builder(builder: (context) {
+        final vc = Theme.of(context).extension<VoyagerPalette>()!;
+        return Scaffold(
+          backgroundColor: vc.background,
+          appBar: AppBar(title: Text(s.settings)),
+          // A Scaffold's body sees the system's insets untouched except for what
+          // its own AppBar already consumed — a display cutout on a long edge in
+          // landscape is left for the body to handle itself. Without this, the
+          // cutout on this screen's own left edge fell across the first column
+          // of every row's icon rather than the margin next to it.
+          body: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              children: [
+                _SectionHeader(s.sectionMusic, vc: vc),
+                _NavigationRow(
+                  vc: vc,
+                  icon: Icons.dns_rounded,
+                  title: s.backendNavidrome,
+                  value: config.hasNavidrome
+                      ? config.navidromeEndpoint!
+                      : s.backendNone,
+                  onTap: () => _openServer(MusicBackend.navidrome),
+                ),
+                _NavigationRow(
+                  vc: vc,
+                  icon: Icons.movie_filter_rounded,
+                  title: s.backendJellyfin,
+                  value: config.hasJellyfin
+                      ? config.jellyfinEndpoint!
+                      : s.backendNone,
+                  onTap: () => _openServer(MusicBackend.jellyfin),
+                ),
+                _NavigationRow(
+                  vc: vc,
+                  icon: Icons.sd_storage_rounded,
+                  title: s.musicFolder,
+                  value: _musicFolderSummary(s),
+                  onTap: _openFolderPicker,
+                ),
+                _NavigationRow(
+                  vc: vc,
+                  icon: Icons.graphic_eq_rounded,
+                  title: s.equalizer,
+                  value: _equalizerSummary(s),
+                  onTap: _openEqualizer,
+                ),
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                _SectionHeader(s.sectionVoice, vc: vc),
+                KokoroVoiceCard(vc: vc),
+                VoskVoiceCard(vc: vc),
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                _SectionHeader(s.sectionMapTheme, vc: vc),
+                _MapThemeRow(s: s, vc: vc),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.autoDark,
+                  subtitle: s.autoDarkWhy,
+                  value: context.watch<ThemeProvider>().autoDarkEnabled,
+                  onChanged: context.read<ThemeProvider>().setAutoDarkEnabled,
+                ),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.imperialUnits,
+                  subtitle: s.imperialUnitsWhy,
+                  value: _box.get('imperialUnits', defaultValue: false) as bool,
+                  onChanged: (value) =>
+                      setState(() => _box.put('imperialUnits', value)),
+                ),
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                _SectionHeader(s.sectionDisplay, vc: vc),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.lightTheme,
+                  subtitle: s.lightThemeWhy,
+                  value: _box.get(VoyagerScope.lightThemeKey,
+                      defaultValue: false) as bool,
+                  onChanged: (value) => setState(
+                      () => _box.put(VoyagerScope.lightThemeKey, value)),
+                ),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.keepScreenOn,
+                  subtitle: s.keepScreenOnWhy,
+                  value: ui.keepAwake,
+                  onChanged: ui.setKeepAwake,
+                ),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.nightDimming,
+                  subtitle: s.nightDimmingWhy,
+                  value: ui.nightDimming,
+                  onChanged: (value) {
+                    ui.setNightDimming(value);
+                    _box.put('voyager_night_dimming', value);
+                  },
+                ),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.wheelControls,
+                  subtitle: s.wheelControlsWhy,
+                  value: gestures.remapVolumeKeys,
+                  onChanged: (value) => setState(() {
+                    gestures.remapVolumeKeys = value;
+                    _box.put('voyager_remap_volume', value);
+                  }),
+                ),
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                _SectionHeader(s.sectionInfo, vc: vc),
+                _InfoRow(vc: vc, title: s.infoVersion, value: _version),
+                _InfoRow(
+                    vc: vc, title: s.infoNavigation, value: 'Roadstr · OSRM'),
+                _InfoRow(
+                  vc: vc,
+                  title: s.infoMaps,
+                  value: 'openstreetmap.org',
+                  url: 'https://www.openstreetmap.org',
+                ),
+                _InfoRow(
+                  vc: vc,
+                  title: s.infoWeather,
+                  value: 'open-meteo.com',
+                  url: 'https://open-meteo.com',
+                ),
+                _InfoRow(
+                    vc: vc, title: s.infoSpeech, value: 'Kokoro · eSpeak-NG'),
+                _InfoRow(vc: vc, title: s.infoLicence, value: 'GPL v3'),
+                _InfoRow(
+                  vc: vc,
+                  title: s.infoSource,
+                  value: 'github.com/Lwb89dev/voyager',
+                  url: 'https://github.com/Lwb89dev/voyager',
+                ),
+                const SizedBox(height: AutomotiveConfig.gutter),
+                DonationTile(vc: vc),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 
@@ -197,6 +217,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   EqualizerController? get _equalizer {
     final music = context.read<PluginService>().byId('music');
     return music is MusicPlugin ? music.equalizer : null;
+  }
+
+  String _musicFolderSummary(VoyagerStrings s) {
+    final folders = MusicFolderService.chosenFolders;
+    if (folders.isEmpty) return s.folderNotChosen;
+    if (folders.length == 1) {
+      return MusicFolderService.displayName(folders.first);
+    }
+    return s.folderCount(folders.length);
   }
 
   String _equalizerSummary(VoyagerStrings s) {
@@ -241,7 +270,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class DonationTile extends StatelessWidget {
   static const String lightningAddress = 'lwb89@blink.sv';
 
-  const DonationTile({super.key});
+  final VoyagerPalette vc;
+
+  const DonationTile({super.key, required this.vc});
 
   @override
   Widget build(BuildContext context) {
@@ -251,18 +282,18 @@ class DonationTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: VoyagerColors.surfaceRaised,
+          color: vc.surfaceRaised,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: VoyagerColors.accent.withValues(alpha: 0.4),
+            color: vc.accent.withValues(alpha: 0.4),
             width: 0.8,
           ),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.bolt_rounded,
-              color: VoyagerColors.accentLight,
+              color: vc.accentLight,
               size: 20,
             ),
             const SizedBox(width: 10),
@@ -272,27 +303,27 @@ class DonationTile extends StatelessWidget {
                 children: [
                   Text(
                     s.supportVoyager,
-                    style: const TextStyle(
-                      color: VoyagerColors.textPrimary,
+                    style: TextStyle(
+                      color: vc.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
+                  Text(
                     lightningAddress,
                     style: TextStyle(
-                      color: VoyagerColors.textSecondary,
+                      color: vc.textSecondary,
                       fontSize: 13,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.open_in_new_rounded,
               size: 15,
-              color: VoyagerColors.accentLight,
+              color: vc.accentLight,
             ),
           ],
         ),
@@ -427,60 +458,64 @@ class _MusicServerScreenState extends State<MusicServerScreen> {
   Widget build(BuildContext context) {
     final s = VoyagerStrings.of(context);
     return VoyagerScope(
-      child: Scaffold(
-        backgroundColor: VoyagerColors.background,
-        appBar: AppBar(
-          title: Text(_isNavidrome ? s.backendNavidrome : s.backendJellyfin),
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _Field(
-              controller: _endpoint,
-              label: s.serverAddress,
-              hint: _isNavidrome
-                  ? 'http://192.168.1.100:4533'
-                  : 'http://192.168.1.100:8096',
-              keyboardType: TextInputType.url,
-            ),
-            _Field(
-              controller: _first,
-              label: _isNavidrome ? s.username : s.apiKey,
-            ),
-            _Field(
-              controller: _second,
-              label: _isNavidrome ? s.password : s.userId,
-              obscure: _isNavidrome,
-            ),
-            const SizedBox(height: 20),
-            if (_result != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Text(
-                  _result!,
-                  style: TextStyle(
-                    color: _ok ? VoyagerColors.success : VoyagerColors.danger,
-                    fontSize: 14,
-                  ),
-                ),
+      matchAmbient: true,
+      child: Builder(builder: (context) {
+        final vc = Theme.of(context).extension<VoyagerPalette>()!;
+        return Scaffold(
+          backgroundColor: vc.background,
+          appBar: AppBar(
+            title: Text(_isNavidrome ? s.backendNavidrome : s.backendJellyfin),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _Field(
+                controller: _endpoint,
+                label: s.serverAddress,
+                hint: _isNavidrome
+                    ? 'http://192.168.1.100:4533'
+                    : 'http://192.168.1.100:8096',
+                keyboardType: TextInputType.url,
               ),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _testing ? null : _test,
-                    child: Text(_testing ? '…' : s.testConnection),
+              _Field(
+                controller: _first,
+                label: _isNavidrome ? s.username : s.apiKey,
+              ),
+              _Field(
+                controller: _second,
+                label: _isNavidrome ? s.password : s.userId,
+                obscure: _isNavidrome,
+              ),
+              const SizedBox(height: 20),
+              if (_result != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Text(
+                    _result!,
+                    style: TextStyle(
+                      color: _ok ? vc.success : vc.danger,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(onPressed: _save, child: Text(s.save)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _testing ? null : _test,
+                      child: Text(_testing ? '…' : s.testConnection),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(onPressed: _save, child: Text(s.save)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 
@@ -505,8 +540,9 @@ class _MusicServerScreenState extends State<MusicServerScreen> {
 /// cover.
 class _MapThemeRow extends StatelessWidget {
   final VoyagerStrings s;
+  final VoyagerPalette vc;
 
-  const _MapThemeRow({required this.s});
+  const _MapThemeRow({required this.s, required this.vc});
 
   @override
   Widget build(BuildContext context) {
@@ -514,19 +550,20 @@ class _MapThemeRow extends StatelessWidget {
     final l = AppLocalizations.of(context);
 
     return _Row(
+      vc: vc,
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.palette_rounded,
-            color: VoyagerColors.accentLight,
+            color: vc.accentLight,
             size: 20,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               s.mapTheme,
-              style: const TextStyle(
-                color: VoyagerColors.textPrimary,
+              style: TextStyle(
+                color: vc.textPrimary,
                 fontSize: 14,
               ),
             ),
@@ -537,10 +574,10 @@ class _MapThemeRow extends StatelessWidget {
               onChanged: (id) {
                 if (id != null) context.read<ThemeProvider>().setTheme(id);
               },
-              dropdownColor: VoyagerColors.surfaceRaised,
+              dropdownColor: vc.surfaceRaised,
               borderRadius: BorderRadius.circular(14),
-              style: const TextStyle(
-                color: VoyagerColors.textPrimary,
+              style: TextStyle(
+                color: vc.textPrimary,
                 fontSize: 13,
               ),
               items: [
@@ -562,15 +599,16 @@ class _MapThemeRow extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  const _SectionHeader(this.title);
+  final VoyagerPalette vc;
+  const _SectionHeader(this.title, {required this.vc});
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
         child: Text(
           title,
-          style: const TextStyle(
-            color: VoyagerColors.accentLight,
+          style: TextStyle(
+            color: vc.accentLight,
             fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.2,
@@ -582,7 +620,8 @@ class _SectionHeader extends StatelessWidget {
 class _Row extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
-  const _Row({required this.child, this.onTap});
+  final VoyagerPalette vc;
+  const _Row({required this.child, required this.vc, this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -591,7 +630,7 @@ class _Row extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           decoration: BoxDecoration(
-            color: VoyagerColors.surface,
+            color: vc.surface,
             borderRadius: BorderRadius.circular(14),
           ),
           child: child,
@@ -602,18 +641,19 @@ class _Row extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String title;
   final String value;
-  final String? subtitle;
   final String? url;
+  final VoyagerPalette vc;
 
   const _InfoRow({
     required this.title,
     required this.value,
-    this.subtitle,
+    required this.vc,
     this.url,
   });
 
   @override
   Widget build(BuildContext context) => _Row(
+        vc: vc,
         onTap: url == null
             ? null
             : () => launchUrl(
@@ -628,8 +668,8 @@ class _InfoRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: VoyagerColors.textPrimary,
+                    style: TextStyle(
+                      color: vc.textPrimary,
                       fontSize: 14,
                     ),
                   ),
@@ -637,25 +677,12 @@ class _InfoRow extends StatelessWidget {
                 Text(
                   value,
                   style: TextStyle(
-                    color: url == null
-                        ? VoyagerColors.textSecondary
-                        : VoyagerColors.accentLight,
+                    color: url == null ? vc.textSecondary : vc.accentLight,
                     fontSize: 13,
                   ),
                 ),
               ],
             ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                subtitle!,
-                style: const TextStyle(
-                  color: VoyagerColors.textSecondary,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ],
           ],
         ),
       );
@@ -666,26 +693,29 @@ class _NavigationRow extends StatelessWidget {
   final String title;
   final String value;
   final VoidCallback onTap;
+  final VoyagerPalette vc;
 
   const _NavigationRow({
     required this.icon,
     required this.title,
     required this.value,
     required this.onTap,
+    required this.vc,
   });
 
   @override
   Widget build(BuildContext context) => _Row(
+        vc: vc,
         onTap: onTap,
         child: Row(
           children: [
-            Icon(icon, color: VoyagerColors.accentLight, size: 20),
+            Icon(icon, color: vc.accentLight, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: VoyagerColors.textPrimary,
+                style: TextStyle(
+                  color: vc.textPrimary,
                   fontSize: 14,
                 ),
               ),
@@ -695,16 +725,16 @@ class _NavigationRow extends StatelessWidget {
                 value,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: VoyagerColors.textSecondary,
+                style: TextStyle(
+                  color: vc.textSecondary,
                   fontSize: 13,
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
               size: 18,
-              color: VoyagerColors.textSecondary,
+              color: vc.textSecondary,
             ),
           ],
         ),
@@ -716,16 +746,19 @@ class _SwitchRow extends StatelessWidget {
   final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final VoyagerPalette vc;
 
   const _SwitchRow({
     required this.title,
     required this.subtitle,
     required this.value,
     required this.onChanged,
+    required this.vc,
   });
 
   @override
   Widget build(BuildContext context) => _Row(
+        vc: vc,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -734,8 +767,8 @@ class _SwitchRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: VoyagerColors.textPrimary,
+                    style: TextStyle(
+                      color: vc.textPrimary,
                       fontSize: 14,
                     ),
                   ),
@@ -745,8 +778,8 @@ class _SwitchRow extends StatelessWidget {
             ),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: VoyagerColors.textSecondary,
+              style: TextStyle(
+                color: vc.textSecondary,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -780,16 +813,13 @@ class _Field extends StatelessWidget {
           keyboardType: keyboardType,
           autocorrect: false,
           enableSuggestions: false,
-          style: const TextStyle(color: VoyagerColors.textPrimary),
+          // Colour, fill and border all come from the ambient
+          // InputDecorationTheme (see VoyagerTheme._themeFor) — this field
+          // renders correctly under either VoyagerTheme.dark or .light
+          // without needing to know which one is active.
           decoration: InputDecoration(
             labelText: label,
             hintText: hint,
-            filled: true,
-            fillColor: VoyagerColors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
           ),
         ),
       );

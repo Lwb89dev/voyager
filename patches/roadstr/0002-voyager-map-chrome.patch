@@ -1,8 +1,24 @@
---- a/lib/widgets/map/map_chrome.dart
-+++ b/lib/widgets/map/map_chrome.dart
-@@ -29,117 +29,150 @@
+--- a/lib/widgets/map/map_chrome.dart	2026-08-19 22:02:08.327445002 +0200
++++ b/lib/widgets/map/map_chrome.dart	2026-08-22 07:52:18.967363536 +0200
+@@ -22,124 +22,167 @@
+   final String? profilePicture;
+   final bool hasNostrLogin;
+   final VoidCallback onProfileReturn;
+-  const MapBottomBar({super.key, required this.bottomInset,
++  // VOYAGER: see the note on MapScreen.onOpenAppSettings — null falls back
++  // to Roadstr's own SettingsScreen, which is the correct default when this
++  // widget is built by Roadstr standalone.
++  final void Function(BuildContext)? onMenuTap;
++  const MapBottomBar(
++      {super.key,
++      required this.bottomInset,
+       required this.colors,
+       required this.pubkey,
+       required this.profilePicture,
        required this.hasNostrLogin,
-       required this.onProfileReturn});
+-      required this.onProfileReturn});
++      required this.onProfileReturn,
++      this.onMenuTap});
    @override
 -  Widget build(BuildContext context) => Container(
 -        decoration: BoxDecoration(
@@ -170,8 +186,9 @@
 +              : [ActivityNotificationService.storageKey(pubkey!)],
 +        ),
 +        builder: (_, __, ___) {
-+          final unread =
-+              pubkey == null ? 0 : ActivityNotificationService().unreadCount(pubkey!);
++          final unread = pubkey == null
++              ? 0
++              : ActivityNotificationService().unreadCount(pubkey!);
 +          return MapBottomBarItem(
 +            compact: compact,
 +            icon: Stack(clipBehavior: Clip.none, children: [
@@ -253,20 +270,26 @@
 +        icon: Icon(Icons.menu, color: colors.textSecondary, size: 26),
 +        label: AppLocalizations.of(context).bottomBarMenu,
 +        colors: colors,
-+        onTap: () => Navigator.push(context,
-+            MaterialPageRoute(builder: (_) => const SettingsScreen())),
++        onTap: () => onMenuTap != null
++            ? onMenuTap!(context)
++            : Navigator.push(context,
++                MaterialPageRoute(builder: (_) => const SettingsScreen())),
        );
  }
  
-@@ -148,12 +181,32 @@
+@@ -148,34 +191,62 @@
    final String label;
    final RoadstrColors colors;
    final VoidCallback onTap;
+-  const MapBottomBarItem({super.key, required this.icon,
++
 +  /// VOYAGER: drops the label and squares the target off. The label is what
 +  /// makes the full bar tall; the icons are unambiguous enough without it, and
 +  /// the tooltip keeps the name reachable for anyone who wants it.
 +  final bool compact;
-   const MapBottomBarItem({super.key, required this.icon,
++  const MapBottomBarItem(
++      {super.key,
++      required this.icon,
        required this.label,
        required this.colors,
 -      required this.onTap});
@@ -274,6 +297,19 @@
 +      this.compact = false});
    @override
 -  Widget build(BuildContext context) => InkWell(
+-        onTap: onTap,
+-        borderRadius: BorderRadius.circular(12),
+-        child: Padding(
+-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+-            SizedBox(width: 30, height: 26, child: Center(child: icon)),
+-            const SizedBox(height: 2),
+-            Text(label,
+-                maxLines: 1,
+-                overflow: TextOverflow.ellipsis,
+-                textAlign: TextAlign.center,
+-                style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+-          ]),
 +  Widget build(BuildContext context) {
 +    if (compact) {
 +      return Tooltip(
@@ -286,18 +322,73 @@
 +            height: 44,
 +            child: Center(child: icon),
 +          ),
-+        ),
-+      );
-+    }
-+    return InkWell(
-         onTap: onTap,
-         borderRadius: BorderRadius.circular(12),
-         child: Padding(
-@@ -169,6 +222,7 @@
-           ]),
          ),
        );
++    }
++    return InkWell(
++      onTap: onTap,
++      borderRadius: BorderRadius.circular(12),
++      child: Padding(
++        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
++        child: Column(mainAxisSize: MainAxisSize.min, children: [
++          SizedBox(width: 30, height: 26, child: Center(child: icon)),
++          const SizedBox(height: 2),
++          Text(label,
++              maxLines: 1,
++              overflow: TextOverflow.ellipsis,
++              textAlign: TextAlign.center,
++              style: TextStyle(color: colors.textSecondary, fontSize: 11)),
++        ]),
++      ),
++    );
 +  }
  }
  
  class MapFab extends StatelessWidget {
+   final Widget child;
+   final VoidCallback onTap;
+   final RoadstrColors colors;
+-  const MapFab({super.key, required this.child, required this.onTap, required this.colors});
++  const MapFab(
++      {super.key,
++      required this.child,
++      required this.onTap,
++      required this.colors});
+   @override
+   Widget build(BuildContext context) => Material(
+         // Same lit-object treatment as the manoeuvre tile, so the map controls
+@@ -210,7 +281,11 @@
+   final double rotDeg;
+   final bool active;
+   final VoidCallback onTap;
+-  const CompassFab({super.key, required this.rotDeg, required this.active, required this.onTap});
++  const CompassFab(
++      {super.key,
++      required this.rotDeg,
++      required this.active,
++      required this.onTap});
+ 
+   static const _purple = Color(0xFF7C3AED);
+ 
+@@ -349,9 +424,7 @@
+           child: Text(
+             l.ztlNearRouteWarning(label),
+             style: const TextStyle(
+-                color: Colors.black,
+-                fontSize: 14,
+-                fontWeight: FontWeight.w600),
++                color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600),
+           ),
+         ),
+       ]),
+@@ -390,8 +463,8 @@
+         // the same height on the left. A wider cap lets a long street name
+         // slide underneath the sign, and a covered speed limit is a worse loss
+         // than a truncated street name.
+-        constraints: BoxConstraints(
+-            maxWidth: MediaQuery.of(context).size.width * 0.52),
++        constraints:
++            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.52),
+         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+         decoration: BoxDecoration(
+           // Solid accent with the same corner highlight the manoeuvre tile and

@@ -46,6 +46,16 @@ abstract class BasePlugin extends ChangeNotifier {
   /// down the whole dashboard with it.
   Future<void> initialize();
 
+  /// Tries again after a failed [initialize] — offered to the user as a
+  /// button on [PluginPlaceholder] rather than requiring a full app restart,
+  /// which was previously the only way back from, say, a permission the user
+  /// denied and then granted from Settings without Voyager ever finding out.
+  ///
+  /// The default just re-runs [initialize]; a plugin whose failure needs more
+  /// than that first — re-requesting a permission, for instance — overrides
+  /// this instead of leaving the user to work out where to go by themselves.
+  Future<void> retry() => initialize();
+
   /// The plugin as the main pane. Only called when [isReady].
   Widget buildFullscreenView(BuildContext context);
 

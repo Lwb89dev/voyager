@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:roadstr/l10n/app_localizations.dart';
 import 'package:roadstr/services/weather_service.dart' as roadstr;
+import 'package:roadstr/utils/units.dart';
 
 import '../config/automotive_config.dart';
 import '../plugins/weather/weather_alerts.dart';
 import '../plugins/weather/weather_plugin.dart';
 import '../theme/voyager_theme.dart';
+
+/// °C→°F when the shared `imperialUnits` setting is on — the same Hive key
+/// Roadstr's own [Units] reads for speed and distance, so one toggle (in
+/// either app's settings) changes navigation and weather together rather
+/// than being two preferences a user has to find twice.
+String _formatTemp(double celsius) => Units.imperial
+    ? '${(celsius * 9 / 5 + 32).round()}°F'
+    : '${celsius.round()}°C';
+
+String _formatWind(double kmh) =>
+    '${Units.toDisplaySpeed(kmh).round()} ${Units.speedUnit}';
 
 /// Current conditions, at a size that can be read in the time it takes to
 /// check a mirror.
@@ -102,7 +114,7 @@ class _Conditions extends StatelessWidget {
           Text(data.emoji, style: const TextStyle(fontSize: 96)),
           const SizedBox(height: 8),
           Text(
-            '${data.tempC.round()}°',
+            _formatTemp(data.tempC),
             style: const TextStyle(
               color: VoyagerColors.textPrimary,
               fontSize: 84,
@@ -120,7 +132,7 @@ class _Conditions extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${data.windKmh.round()} km/h',
+            _formatWind(data.windKmh),
             style: const TextStyle(
               color: VoyagerColors.textSecondary,
               fontSize: AutomotiveConfig.secondaryTextSize,
@@ -160,7 +172,7 @@ class _CompactConditions extends StatelessWidget {
           Text(data.emoji, style: const TextStyle(fontSize: 56)),
           const SizedBox(width: 16),
           Text(
-            '${data.tempC.round()}°',
+            _formatTemp(data.tempC),
             style: const TextStyle(
               color: VoyagerColors.textPrimary,
               fontSize: 52,
@@ -189,7 +201,7 @@ class _CompactConditions extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${data.windKmh.round()} km/h',
+                  _formatWind(data.windKmh),
                   style: const TextStyle(
                     color: VoyagerColors.textSecondary,
                     fontSize: 16,

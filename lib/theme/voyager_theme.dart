@@ -47,56 +47,149 @@ class VoyagerColors {
   );
 }
 
+/// The same named colours [VoyagerColors] provides as static constants,
+/// exposed instead as a [ThemeExtension] so a screen that opts into
+/// [VoyagerTheme.light] can be built from `Theme.of(context)` rather than
+/// from the dark-only statics. Every field mirrors one of [VoyagerColors]'s.
+class VoyagerPalette extends ThemeExtension<VoyagerPalette> {
+  final Color background;
+  final Color surface;
+  final Color surfaceRaised;
+  final Color accent;
+  final Color accentLight;
+  final Color accentMid;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color border;
+  final Color success;
+  final Color warning;
+  final Color danger;
+
+  const VoyagerPalette({
+    required this.background,
+    required this.surface,
+    required this.surfaceRaised,
+    required this.accent,
+    required this.accentLight,
+    required this.accentMid,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.border,
+    required this.success,
+    required this.warning,
+    required this.danger,
+  });
+
+  static const dark = VoyagerPalette(
+    background: VoyagerColors.background,
+    surface: VoyagerColors.surface,
+    surfaceRaised: VoyagerColors.surfaceRaised,
+    accent: VoyagerColors.accent,
+    accentLight: VoyagerColors.accentLight,
+    accentMid: VoyagerColors.accentMid,
+    textPrimary: VoyagerColors.textPrimary,
+    textSecondary: VoyagerColors.textSecondary,
+    border: VoyagerColors.border,
+    success: VoyagerColors.success,
+    warning: VoyagerColors.warning,
+    danger: VoyagerColors.danger,
+  );
+
+  /// Same accent hue family, inverted neutral scale — a violet-on-white
+  /// counterpart to the icon-sampled dark palette, with the accent and
+  /// status colours deepened a step so they still hold contrast on white.
+  static const light = VoyagerPalette(
+    background: Color(0xFFF5F5FA),
+    surface: Color(0xFFFFFFFF),
+    surfaceRaised: Color(0xFFEDEBF7),
+    accent: Color(0xFF6D28D9),
+    accentLight: Color(0xFF6D5FD3),
+    accentMid: Color(0xFF7C3AED),
+    textPrimary: Color(0xFF1A1B2E),
+    textSecondary: Color(0xFF5C5C74),
+    border: Color(0xFFDCDCE8),
+    success: Color(0xFF1FA968),
+    warning: Color(0xFFB5760A),
+    danger: Color(0xFFD23B41),
+  );
+
+  @override
+  VoyagerPalette copyWith() => this;
+
+  @override
+  VoyagerPalette lerp(ThemeExtension<VoyagerPalette>? other, double t) =>
+      other is VoyagerPalette && t >= 0.5 ? other : this;
+}
+
 class VoyagerTheme {
   const VoyagerTheme._();
 
-  /// Voyager ships one theme, not a light/dark pair.
-  ///
-  /// A light theme would be actively unsafe here: the app is designed to sit
-  /// in a driver's peripheral vision for hours, and there is no ambient-light
-  /// condition in which a bright dashboard is the better choice. Roadstr,
-  /// which is also used as a phone app on foot, does offer both.
-  static ThemeData get dark {
-    const scheme = ColorScheme.dark(
-      primary: VoyagerColors.accent,
-      onPrimary: Colors.white,
-      secondary: VoyagerColors.accentLight,
-      onSecondary: VoyagerColors.background,
-      surface: VoyagerColors.surface,
-      onSurface: VoyagerColors.textPrimary,
-      error: VoyagerColors.danger,
-      onError: Colors.white,
-    );
+  /// The dashboard's own theme — chrome, the map pane, music, podcasts,
+  /// weather. Always this one, never [light]: it sits in a driver's
+  /// peripheral vision for hours, and there is no ambient-light condition in
+  /// which a bright dashboard is the better choice on a windscreen mount.
+  static ThemeData get dark => _themeFor(VoyagerPalette.dark);
+
+  /// For the screens that are explicitly not part of the driving surface —
+  /// Settings foremost, used parked rather than glanced at mid-drive — where
+  /// staying dark regardless of the rest of the app's theme reads as a bug,
+  /// not a safety choice. Opt-in per screen; see `VoyagerScope.matchAmbient`.
+  static ThemeData get light => _themeFor(VoyagerPalette.light);
+
+  static ThemeData _themeFor(VoyagerPalette p) {
+    final scheme = p == VoyagerPalette.light
+        ? ColorScheme.light(
+            primary: p.accent,
+            onPrimary: Colors.white,
+            secondary: p.accentLight,
+            onSecondary: Colors.white,
+            surface: p.surface,
+            onSurface: p.textPrimary,
+            error: p.danger,
+            onError: Colors.white,
+          )
+        : ColorScheme.dark(
+            primary: p.accent,
+            onPrimary: Colors.white,
+            secondary: p.accentLight,
+            onSecondary: p.background,
+            surface: p.surface,
+            onSurface: p.textPrimary,
+            error: p.danger,
+            onError: Colors.white,
+          );
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness:
+          p == VoyagerPalette.light ? Brightness.light : Brightness.dark,
       colorScheme: scheme,
-      scaffoldBackgroundColor: VoyagerColors.background,
-      canvasColor: VoyagerColors.background,
-      dividerColor: VoyagerColors.border,
+      scaffoldBackgroundColor: p.background,
+      canvasColor: p.background,
+      dividerColor: p.border,
       fontFamily: null,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: VoyagerColors.background,
+      extensions: [p],
+      appBarTheme: AppBarTheme(
+        backgroundColor: p.background,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          color: VoyagerColors.textPrimary,
+          color: p.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w700,
         ),
-        iconTheme: IconThemeData(color: VoyagerColors.textPrimary),
+        iconTheme: IconThemeData(color: p.textPrimary),
       ),
       cardTheme: CardThemeData(
-        color: VoyagerColors.surface,
+        color: p.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: VoyagerColors.accent,
+          backgroundColor: p.accent,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape:
@@ -106,38 +199,45 @@ class VoyagerTheme {
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? VoyagerColors.accentLight
-              : VoyagerColors.textSecondary,
+              ? p.accentLight
+              : p.textSecondary,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? VoyagerColors.accent
-              : VoyagerColors.surfaceRaised,
+          (s) => s.contains(WidgetState.selected) ? p.accent : p.surfaceRaised,
         ),
       ),
-      sliderTheme: const SliderThemeData(
-        activeTrackColor: VoyagerColors.accent,
-        inactiveTrackColor: VoyagerColors.surfaceRaised,
-        thumbColor: VoyagerColors.accentLight,
+      sliderTheme: SliderThemeData(
+        activeTrackColor: p.accent,
+        inactiveTrackColor: p.surfaceRaised,
+        thumbColor: p.accentLight,
       ),
-      snackBarTheme: const SnackBarThemeData(
-        backgroundColor: VoyagerColors.surfaceRaised,
-        contentTextStyle: TextStyle(color: VoyagerColors.textPrimary),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: p.surfaceRaised,
+        contentTextStyle: TextStyle(color: p.textPrimary),
         behavior: SnackBarBehavior.floating,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: VoyagerColors.surface,
+        backgroundColor: p.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        titleTextStyle: const TextStyle(
-          color: VoyagerColors.textPrimary,
+        titleTextStyle: TextStyle(
+          color: p.textPrimary,
           fontSize: 19,
           fontWeight: FontWeight.w700,
         ),
-        contentTextStyle: const TextStyle(
-          color: VoyagerColors.textSecondary,
+        contentTextStyle: TextStyle(
+          color: p.textSecondary,
           fontSize: 14,
           height: 1.5,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: p.surface,
+        labelStyle: TextStyle(color: p.textSecondary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
       ),
     );

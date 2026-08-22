@@ -4,7 +4,8 @@
 //   0 — Welcome: what the app is, and the five things it does
 //   1 — Permissions: location and notifications, each with the reason
 //   2 — Music: point at a server, or use what is on the device
-//   3 — Ready: accept the safety notice and start
+//   3 — Voice: download Kokoro TTS and the Vosk speech model, both skippable
+//   4 — Ready: accept the safety notice and start
 //
 // Modelled on Roadstr's onboarding, which gets the important part right:
 // every permission is explained in terms of the feature that needs it, and
@@ -21,6 +22,7 @@ import '../theme/voyager_theme.dart';
 import 'disclaimer_dialog.dart';
 import 'music_folder_screen.dart';
 import 'settings_screen.dart';
+import '../widgets/voice_setup_cards.dart';
 import '../widgets/voyager_scope.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -33,7 +35,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const _pageCount = 4;
+  static const _pageCount = 5;
 
   final _controller = PageController();
   int _page = 0;
@@ -149,6 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       onNext: _next,
                     ),
                     _MusicPage(s: s, onNext: _next),
+                    _VoicePage(s: s, onNext: _next),
                     _ReadyPage(s: s, onStart: _acceptAndFinish),
                   ],
                 ),
@@ -202,7 +205,11 @@ class _WelcomePage extends StatelessWidget {
     final features = [
       (Icons.navigation_rounded, s.featureNavTitle, s.featureNavBody),
       (Icons.music_note_rounded, s.featureMusicTitle, s.featureMusicBody),
-      (Icons.record_voice_over_rounded, s.featureVoiceTitle, s.featureVoiceBody),
+      (
+        Icons.record_voice_over_rounded,
+        s.featureVoiceTitle,
+        s.featureVoiceBody
+      ),
       (Icons.cloud_rounded, s.featureWeatherTitle, s.featureWeatherBody),
       (Icons.phone_rounded, s.featurePhoneTitle, s.featurePhoneBody),
     ];
@@ -213,7 +220,7 @@ class _WelcomePage extends StatelessWidget {
       children: [
         Center(
           child: Image.asset(
-            'assets/icons/icon.png',
+            'assets/brand/icon.png',
             width: 108,
             height: 108,
             filterQuality: FilterQuality.medium,
@@ -586,6 +593,25 @@ class _MusicChoice extends StatelessWidget {
 }
 
 // ── Page 3: ready ──────────────────────────────────────────────────────────
+
+class _VoicePage extends StatelessWidget {
+  final VoyagerStrings s;
+  final VoidCallback onNext;
+
+  const _VoicePage({required this.s, required this.onNext});
+
+  @override
+  Widget build(BuildContext context) => _Page(
+        onNext: onNext,
+        nextLabel: s.next,
+        children: [
+          _PageTitle(title: s.voiceSetupTitle, body: s.voiceSetupBody),
+          const SizedBox(height: AutomotiveConfig.sectionGap),
+          const KokoroVoiceCard(vc: VoyagerPalette.dark),
+          const VoskVoiceCard(vc: VoyagerPalette.dark),
+        ],
+      );
+}
 
 class _ReadyPage extends StatelessWidget {
   final VoyagerStrings s;

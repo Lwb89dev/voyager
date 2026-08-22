@@ -53,6 +53,12 @@ class SpeechService {
   void setLanguage(String languageCode) => _tts.setLanguage(languageCode);
   void setVolume(double volume) => _tts.setVolume(volume);
   void setSpeed(double speed) => _tts.setSpeed(speed);
+  void setGender(String gender) => _tts.setGender(gender);
+
+  /// Speaks a fixed sample phrase in the current language/gender/speed, so a
+  /// choice in Settings can be judged immediately rather than on the next
+  /// real turn instruction.
+  Future<void> previewVoice() => _tts.previewVoice();
 
   Future<void> dispose() => _tts.dispose();
 }

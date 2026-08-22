@@ -16,7 +16,11 @@ import '../../utils/logger_automotive.dart';
 class MusicFolderService {
   const MusicFolderService._();
 
-  static const String _folderKey = 'voyager_music_folder';
+  /// Superseded by [_foldersKey] — read once, at startup, to migrate anyone
+  /// who chose a folder before Voyager supported more than one. Never written
+  /// to again.
+  static const String _legacyFolderKey = 'voyager_music_folder';
+  static const String _foldersKey = 'voyager_music_folders';
 
   /// Where music actually sits on a stock Android device, in the order worth
   /// trying. Enough that most people never need the folder picker at all.
@@ -32,15 +36,39 @@ class MusicFolderService {
     '/sdcard',
   ];
 
-  /// The folder the user chose, or null if they never did.
-  static String? get chosenFolder {
-    final value = Hive.box('settings').get(_folderKey) as String?;
-    if (value == null || value.trim().isEmpty) return null;
-    return value;
+  /// Every folder the user has chosen, oldest first. Empty if they never
+  /// picked one — the scan then falls back to [candidateRoots].
+  ///
+  /// Reads the pre-multi-folder key on first access after an update and
+  /// carries its value over, so nobody's existing choice silently vanishes.
+  static List<String> get chosenFolders {
+    final box = Hive.box('settings');
+    final stored = box.get(_foldersKey) as List?;
+    if (stored != null) return stored.cast<String>();
+
+    final legacy = box.get(_legacyFolderKey) as String?;
+    if (legacy != null && legacy.trim().isNotEmpty) {
+      box.put(_foldersKey, [legacy]);
+      return [legacy];
+    }
+    return const [];
   }
 
-  static Future<void> setChosenFolder(String? path) =>
-      Hive.box('settings').put(_folderKey, path);
+  /// The first chosen folder, or null — kept only for the handful of callers
+  /// (a settings summary line) that want one line of text rather than a list.
+  static String? get chosenFolder =>
+      chosenFolders.isEmpty ? null : chosenFolders.first;
+
+  static Future<void> addFolder(String path) async {
+    final current = chosenFolders;
+    if (current.contains(path)) return;
+    await Hive.box('settings').put(_foldersKey, [...current, path]);
+  }
+
+  static Future<void> removeFolder(String path) async {
+    final current = chosenFolders.where((f) => f != path).toList();
+    await Hive.box('settings').put(_foldersKey, current);
+  }
 
   /// Reading audio needs READ_MEDIA_AUDIO from Android 13 and
   /// READ_EXTERNAL_STORAGE before it. permission_handler maps
@@ -48,21 +76,30 @@ class MusicFolderService {
   static Future<PermissionState> requestAccess() =>
       PermissionService.requestAudio();
 
-  static Future<PermissionState> accessState() => PermissionService.audioState();
+  static Future<PermissionState> accessState() =>
+      PermissionService.audioState();
 
-  /// Directories to scan: the chosen folder if there is one, otherwise every
-  /// candidate root that exists.
+  /// Directories to scan: every chosen folder that still exists, or every
+  /// candidate root that exists if none was ever chosen.
   ///
   /// The fallback matters. A user who skipped the picker still gets their music
   /// if it is in the obvious place, and only has to go looking when it is not.
   static Future<List<Directory>> foldersToScan() async {
-    final chosen = chosenFolder;
-    if (chosen != null) {
-      final directory = Directory(chosen);
-      if (await directory.exists()) return [directory];
-      // The card was pulled, or the folder was renamed. Fall through to the
-      // defaults rather than reporting an empty library.
-      AutomotiveLogger.warn('Music', 'chosen folder is gone: $chosen');
+    final chosen = chosenFolders;
+    if (chosen.isNotEmpty) {
+      final found = <Directory>[];
+      for (final path in chosen) {
+        final directory = Directory(path);
+        if (await directory.exists()) {
+          found.add(directory);
+        } else {
+          // The card was pulled, or the folder was renamed. Skip it rather
+          // than failing the whole scan — the other chosen folders, if any,
+          // still deserve to be read.
+          AutomotiveLogger.warn('Music', 'chosen folder is gone: $path');
+        }
+      }
+      if (found.isNotEmpty) return found;
     }
 
     final found = <Directory>[];

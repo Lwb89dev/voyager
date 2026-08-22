@@ -13,7 +13,8 @@ import '../../utils/logger_automotive.dart';
 /// that matters in a car — working Bluetooth AVRCP buttons on the steering
 /// wheel. Without audio_service, `just_audio` alone stops when the app is
 /// backgrounded and the wheel controls do nothing.
-class VoyagerAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
+class VoyagerAudioHandler extends BaseAudioHandler
+    with QueueHandler, SeekHandler {
   /// The output equalizer, inserted into the player's pipeline.
   ///
   /// It has to be attached at construction: just_audio builds the platform
@@ -100,6 +101,22 @@ class VoyagerAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandle
     mediaItem.add(null);
   }
 
+  /// Called by the platform side when the task is removed from Android's
+  /// recents — the user swiped the app away, not merely backgrounded it.
+  ///
+  /// The whole point of running through `audio_service` is that playback
+  /// survives the app being backgrounded (screen off, another app in front),
+  /// so this must not trigger on every `pause`/`inactive` lifecycle
+  /// transition — only on an actual close. Android already makes that
+  /// distinction for us and calls this hook exactly then; the default
+  /// [BaseAudioHandler] implementation does nothing with it, which is why
+  /// music and podcasts kept playing after the app was swiped away.
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
+    await clearQueue();
+  }
+
   @override
   Future<void> seek(Duration position) => _player.seek(position);
 
@@ -125,8 +142,7 @@ class VoyagerAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandle
     await _player.seek(Duration.zero, index: index);
   }
 
-  Future<void> togglePlayPause() =>
-      _player.playing ? pause() : play();
+  Future<void> togglePlayPause() => _player.playing ? pause() : play();
 
   void _onIndexChanged(int? index) {
     if (index == null || index < 0 || index >= _tracks.length) return;

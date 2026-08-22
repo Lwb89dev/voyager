@@ -37,6 +37,7 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
   String? _current;
   List<Directory> _entries = const [];
   bool _loading = true;
+  List<String> _chosen = const [];
 
   @override
   void initState() {
@@ -47,9 +48,17 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
   Future<void> _start() async {
     final access = await MusicFolderService.accessState();
     if (!mounted) return;
-    setState(() => _access = access);
+    setState(() {
+      _access = access;
+      _chosen = MusicFolderService.chosenFolders;
+    });
     if (access == PermissionState.granted) await _openFirstReadableRoot();
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _removeFolder(String path) async {
+    await MusicFolderService.removeFolder(path);
+    if (mounted) setState(() => _chosen = MusicFolderService.chosenFolders);
   }
 
   Future<void> _requestAccess() async {
@@ -101,6 +110,9 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
     _open(current.substring(0, index));
   }
 
+  /// Adds the current folder to the chosen set — it does not leave the
+  /// browser, so a second and third folder are as many taps away as the
+  /// first rather than a whole separate visit to this screen each time.
   Future<void> _choose() async {
     final current = _current;
     if (current == null) return;
@@ -111,8 +123,8 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
       );
       return;
     }
-    await MusicFolderService.setChosenFolder(current);
-    if (mounted) Navigator.of(context).pop(current);
+    await MusicFolderService.addFolder(current);
+    if (mounted) setState(() => _chosen = MusicFolderService.chosenFolders);
   }
 
   @override
@@ -126,11 +138,13 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
           actions: [
             if (_access == PermissionState.granted && _current != null)
               TextButton(
-                onPressed: _choose,
+                onPressed: _chosen.contains(_current) ? null : _choose,
                 child: Text(
-                  s.useThisFolder,
-                  style: const TextStyle(
-                    color: VoyagerColors.accentLight,
+                  _chosen.contains(_current) ? s.folderAdded : s.useThisFolder,
+                  style: TextStyle(
+                    color: _chosen.contains(_current)
+                        ? VoyagerColors.textSecondary
+                        : VoyagerColors.accentLight,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -148,11 +162,15 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
         child: CircularProgressIndicator(color: VoyagerColors.accent),
       );
     }
-    if (_access != PermissionState.granted) return _AccessGate(s: s, state: _access, onGrant: _requestAccess);
+    if (_access != PermissionState.granted) {
+      return _AccessGate(s: s, state: _access, onGrant: _requestAccess);
+    }
     if (_current == null) return _Message(text: s.folderUnreadable);
 
     return Column(
       children: [
+        if (_chosen.isNotEmpty)
+          _ChosenFolders(folders: _chosen, onRemove: _removeFolder),
         _PathBar(path: _current!, onUp: _goUp),
         Expanded(
           child: _entries.isEmpty
@@ -180,6 +198,36 @@ class _MusicFolderScreenState extends State<MusicFolderScreen> {
       ],
     );
   }
+}
+
+class _ChosenFolders extends StatelessWidget {
+  final List<String> folders;
+  final ValueChanged<String> onRemove;
+
+  const _ChosenFolders({required this.folders, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        color: VoyagerColors.surfaceRaised,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final folder in folders)
+              Chip(
+                label: Text(MusicFolderService.displayName(folder)),
+                labelStyle: const TextStyle(color: VoyagerColors.textPrimary),
+                backgroundColor: VoyagerColors.surface,
+                side: const BorderSide(color: VoyagerColors.border),
+                deleteIcon: const Icon(Icons.close_rounded,
+                    size: 16, color: VoyagerColors.textSecondary),
+                onDeleted: () => onRemove(folder),
+              ),
+          ],
+        ),
+      );
 }
 
 class _PathBar extends StatelessWidget {

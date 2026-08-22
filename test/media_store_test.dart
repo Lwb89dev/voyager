@@ -24,9 +24,10 @@ Map<String, Object?> row({
       'artUri': 'content://media/external/audio/albumart/$albumId',
     };
 
-MediaStoreLibrary libraryOf(List<Map<String, Object?>> rows, {String? folder}) =>
+MediaStoreLibrary libraryOf(List<Map<String, Object?>> rows,
+        {String? folder}) =>
     MediaStoreLibrary(
-      folderFilter: folder,
+      folderFilters: folder == null ? const [] : [folder],
       query: (_) async => rows,
     );
 
@@ -77,7 +78,8 @@ void main() {
     expect(tracks.map((t) => t.title), ['Zuma Beach', 'Anger Moves']);
   });
 
-  test('labels an album with no name rather than showing a blank row', () async {
+  test('labels an album with no name rather than showing a blank row',
+      () async {
     final library = libraryOf([row(album: '', albumId: '99')]);
     final albums = await library.albums();
     expect(albums.single.name, isNotEmpty);

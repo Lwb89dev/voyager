@@ -46,9 +46,8 @@ class EqualizerController extends ChangeNotifier {
   double get minDecibels => _parameters?.minDecibels ?? -15;
   double get maxDecibels => _parameters?.maxDecibels ?? 15;
 
-  String get presetName =>
-      Hive.box('settings').get(_presetKey, defaultValue: EqualizerPreset.flat.name)
-          as String;
+  String get presetName => Hive.box('settings')
+      .get(_presetKey, defaultValue: EqualizerPreset.flat.name) as String;
 
   /// Attaches to the running player and restores the saved curve.
   ///
@@ -74,7 +73,8 @@ class EqualizerController extends ChangeNotifier {
         // the sliders sit at +3 makes the preset chips lie about what is being
         // heard, so the label follows the hardware rather than the other way
         // round.
-        await _rememberPreset(_looksFlat ? EqualizerPreset.flat : EqualizerPreset.custom);
+        await _rememberPreset(
+            _looksFlat ? EqualizerPreset.flat : EqualizerPreset.custom);
       }
     } catch (error) {
       // Some devices ship without a usable equalizer effect, and a few report

@@ -52,14 +52,14 @@ class MediaStoreBridge(
     }
 
     private fun queryAudio(call: MethodCall, result: MethodChannel.Result) {
-        // An optional subtree filter, set when the user picked a specific
-        // folder. Without it the whole library is indexed, which is what most
+        // An optional subtree filter, set when the user picked one or more
+        // folders. Without it the whole library is indexed, which is what most
         // people want and what makes the folder picker optional rather than a
         // setup step.
-        val pathPrefix = call.argument<String>("pathPrefix")
+        val pathPrefixes = call.argument<List<String>>("pathPrefixes")
 
         try {
-            result.success(collect(pathPrefix))
+            result.success(collect(pathPrefixes))
         } catch (error: SecurityException) {
             // The audio permission was refused or revoked while running. Report
             // it as such rather than as an empty library: they need different
@@ -70,7 +70,7 @@ class MediaStoreBridge(
         }
     }
 
-    private fun collect(pathPrefix: String?): List<Map<String, Any?>> {
+    private fun collect(pathPrefixes: List<String>?): List<Map<String, Any?>> {
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
@@ -94,9 +94,16 @@ class MediaStoreBridge(
         // people deliberately put on a device to listen to on a drive.
         val selection = StringBuilder("${MediaStore.Audio.Media.IS_MUSIC} != 0")
         val arguments = mutableListOf<String>()
-        if (!pathPrefix.isNullOrBlank()) {
-            selection.append(" AND ${MediaStore.Audio.Media.DATA} LIKE ?")
-            arguments.add("$pathPrefix%")
+        val prefixes = pathPrefixes?.filter { it.isNotBlank() } ?: emptyList()
+        if (prefixes.isNotEmpty()) {
+            // Any one of the chosen folders — an OR'd group of LIKE clauses,
+            // parenthesised so it combines correctly with the IS_MUSIC term
+            // ahead of it rather than short-circuiting the whole selection.
+            val clause = prefixes.joinToString(" OR ") {
+                "${MediaStore.Audio.Media.DATA} LIKE ?"
+            }
+            selection.append(" AND ($clause)")
+            arguments.addAll(prefixes.map { "$it%" })
         }
 
         val order = "${MediaStore.Audio.Media.ALBUM} ASC, " +

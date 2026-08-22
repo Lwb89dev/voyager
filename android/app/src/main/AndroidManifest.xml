@@ -149,5 +149,18 @@
             <data
                 android:scheme="lightning"/>
         </intent>
+        <!-- Required for Roadstr's Amber (NIP-55) login, inherited into
+             Voyager via RoadstrPlugin/ProfileScreen. Without this, Android's
+             package-visibility rules (API 30+) hide the Amber signer app from
+             PackageManager even when it is installed, and the amberflutter
+             plugin's startActivityForResult call resolves to nothing —
+             silently, with no error the user can act on. Roadstr's own
+             manifest declares the identical entry. -->
+        <intent>
+            <action
+                android:name="android.intent.action.VIEW"/>
+            <data
+                android:scheme="nostrsigner"/>
+        </intent>
     </queries>
 </manifest>

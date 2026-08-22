@@ -30,11 +30,19 @@ class VoiceCommandParser {
   };
 
   static const Map<VoiceIntent, List<String>> _italian = {
-    VoiceIntent.previousTrack: ['brano precedente', 'canzone precedente', 'torna indietro'],
+    VoiceIntent.previousTrack: [
+      'brano precedente',
+      'canzone precedente',
+      'torna indietro'
+    ],
     VoiceIntent.nextTrack: ['brano successivo', 'canzone successiva', 'salta'],
     VoiceIntent.pauseMusic: ['pausa', 'ferma la musica'],
     VoiceIntent.playMusic: ['metti la musica', 'metti qualcosa', 'suona'],
-    VoiceIntent.navigateHome: ['portami a casa', 'naviga verso casa', 'vai a casa'],
+    VoiceIntent.navigateHome: [
+      'portami a casa',
+      'naviga verso casa',
+      'vai a casa'
+    ],
     VoiceIntent.cancelRoute: ['annulla percorso', 'ferma la navigazione'],
     VoiceIntent.showNavigation: ['mostra la mappa', 'mappa', 'navigazione'],
     VoiceIntent.showWeather: ['meteo', 'previsioni'],

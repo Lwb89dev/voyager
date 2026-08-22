@@ -21,31 +21,32 @@ class MediaStoreLibrary extends MusicLibrary {
   static const MethodChannel _channel =
       MethodChannel('com.voyager.voyager/media_store');
 
-  /// Optional subtree filter. Set when the user picked a specific folder;
-  /// null indexes everything, which is what most people want.
-  final String? folderFilter;
+  /// Subtree filter. Set when the user picked one or more folders; empty
+  /// indexes everything, which is what most people want.
+  final List<String> folderFilters;
 
   /// Injectable so the tests can feed a fixed cursor result without a device.
-  final Future<List<Object?>> Function(String? pathPrefix) _query;
+  final Future<List<Object?>> Function(List<String> pathPrefixes) _query;
 
   final Map<String, List<MusicTrack>> _byAlbum = {};
   final List<MusicAlbum> _albums = [];
 
   MediaStoreLibrary({
-    this.folderFilter,
-    Future<List<Object?>> Function(String? pathPrefix)? query,
+    this.folderFilters = const [],
+    Future<List<Object?>> Function(List<String> pathPrefixes)? query,
   }) : _query = query ?? _platformQuery;
 
-  static Future<List<Object?>> _platformQuery(String? pathPrefix) async =>
+  static Future<List<Object?>> _platformQuery(
+          List<String> pathPrefixes) async =>
       await _channel.invokeMethod<List<Object?>>(
         'queryAudio',
-        {'pathPrefix': pathPrefix},
+        {'pathPrefixes': pathPrefixes},
       ) ??
       const [];
 
-  /// Builds a library over the user's chosen folder, or over everything.
+  /// Builds a library over the user's chosen folders, or over everything.
   static MediaStoreLibrary forDevice() =>
-      MediaStoreLibrary(folderFilter: MusicFolderService.chosenFolder);
+      MediaStoreLibrary(folderFilters: MusicFolderService.chosenFolders);
 
   @override
   MusicSource get source => MusicSource.local;
@@ -63,7 +64,7 @@ class MediaStoreLibrary extends MusicLibrary {
     if (_albums.isEmpty) {
       throw MusicLibraryUnavailable(
         MusicLibraryProblem.folderEmpty,
-        path: folderFilter,
+        path: folderFilters.isEmpty ? null : folderFilters.join(', '),
       );
     }
   }
@@ -72,14 +73,15 @@ class MediaStoreLibrary extends MusicLibrary {
     _byAlbum.clear();
     _albums.clear();
 
-    final rows = await _query(folderFilter);
+    final rows = await _query(folderFilters);
     for (final row in rows) {
       if (row is! Map) continue;
       _add(row);
     }
 
     _byAlbum.forEach(_recordAlbum);
-    _albums.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    _albums
+        .sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     AutomotiveLogger.debug(
       'Music',
       'indexed ${rows.length} tracks in ${_albums.length} albums',
@@ -154,7 +156,8 @@ class MediaStoreLibrary extends MusicLibrary {
   Future<List<MusicTrack>> allTracks() async {
     if (_albums.isEmpty) await _load();
     final tracks = _byAlbum.values.expand((t) => t).toList();
-    tracks.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    tracks
+        .sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     return tracks;
   }
 
