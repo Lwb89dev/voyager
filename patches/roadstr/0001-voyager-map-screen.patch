@@ -1,5 +1,5 @@
---- a/lib/screens/map_screen.dart	2026-08-21 09:33:04.745720730 +0200
-+++ b/lib/screens/map_screen.dart	2026-08-22 08:36:18.500403318 +0200
+--- a/lib/screens/map_screen.dart	2026-08-27 07:57:57.492307322 +0200
++++ b/lib/screens/map_screen.dart	2026-08-31 14:06:21.294877726 +0200
 @@ -93,7 +93,17 @@
  const double _kRouteGlowW = _kRouteStrokeW + 9;
  
@@ -19,7 +19,7 @@
    @override
    State<MapScreen> createState() => _MapScreenState();
  }
-@@ -196,6 +206,11 @@
+@@ -203,6 +213,11 @@
    /// Mutually exclusive with [_camTicker]/[_northTimer] (only one may drive
    /// the map controller at a time); each cancels the others on start.
    Timer? _followTicker;
@@ -31,7 +31,7 @@
    LatLng? _followTargetCenter;
    double _followTargetZoom = 17.0;
    double _followTargetRot = 0.0;
-@@ -1087,7 +1102,7 @@
+@@ -1100,7 +1115,7 @@
      // In heading-up navigation shift the camera ahead so the cursor sits at
      // ~2/5 from the bottom of the screen (more road visible ahead).
      final center = (_isNavigating && _headingMode)
@@ -40,7 +40,7 @@
          : anchor;
      final rot = _headingMode ? -_heading : _camRotDeg;
  
-@@ -1113,14 +1128,21 @@
+@@ -1126,14 +1141,21 @@
    /// Shifts the camera center [heading]° ahead of [gps] by an amount that
    /// places the GPS marker at ~1/3 from the bottom of the screen (more road
    /// ahead, less behind). Only applied in heading-up navigation mode.
@@ -67,7 +67,7 @@
      const degPerM = 1.0 / 111320.0;
      final rad = heading * math.pi / 180.0;
      final dlat = math.cos(rad) * shiftM * degPerM;
-@@ -2452,7 +2474,9 @@
+@@ -2465,7 +2487,9 @@
    }
  
    Future<void> _requestAlternatives(LatLng destination,
@@ -78,7 +78,7 @@
      final requestGeneration = ++_routeRequestGeneration;
      // Block navigation when GPS hasn't acquired a real fix yet.
      // Using the Italy fallback (42.5, 12.5) as origin would produce a useless
-@@ -2783,8 +2807,8 @@
+@@ -2796,8 +2820,8 @@
    /// bus with a driving route and no indication that it had done so.
    Future<void> _planTransit(
        LatLng origin, LatLng destination, int requestGeneration) async {
@@ -89,7 +89,7 @@
      if (!mounted || requestGeneration != _routeRequestGeneration) return;
  
      setState(() {
-@@ -3684,7 +3708,7 @@
+@@ -3697,7 +3721,7 @@
      // keep whatever rotation the user set so they don't lose their view.
      final rot = (_isNavigating || _headingMode) ? -_heading : _camRotDeg;
      final center = (_isNavigating && _headingMode)
@@ -98,7 +98,7 @@
          : _position;
      _animateCamera(toCenter: center, toZoom: _camZoom, toRot: rot);
    }
-@@ -4658,6 +4682,59 @@
+@@ -4712,6 +4736,59 @@
      final c = RoadstrColors.of(context);
      final topInset = MediaQuery.of(context).viewPadding.top;
      final bottomInset = MediaQuery.of(context).viewPadding.bottom;
@@ -158,7 +158,7 @@
      // Show the NEXT upcoming maneuver (what to do next), not the current step
      // that was just executed.  The distance countdown (_distToNextManeuverM) is
      // already the distance to that next step, so instruction and distance match.
-@@ -5105,12 +5182,16 @@
+@@ -5161,12 +5238,16 @@
              ),
            ),
  
@@ -177,7 +177,7 @@
                child: NavInstruction(
                    step: currentStep,
                    nextStep:
-@@ -5122,13 +5203,35 @@
+@@ -5178,13 +5259,35 @@
                    stepIdx: _currentStepIdx,
                    colors: c,
                    topInset: topInset,
@@ -220,7 +220,7 @@
              ),
  
            // ── SEARCH BAR ────────────────────────────────────────────────────
-@@ -5140,25 +5243,29 @@
+@@ -5196,25 +5299,29 @@
                top: topInset + 12,
                left: 16,
                right: 16,
@@ -269,7 +269,7 @@
              ),
  
            // ── SEARCH RESULTS / NEARBY / HISTORY ────────────────────────────────
-@@ -5171,6 +5278,7 @@
+@@ -5227,6 +5334,7 @@
                // running off the bottom of the screen.
                child: ConstrainedBox(
                  constraints: BoxConstraints(
@@ -277,7 +277,7 @@
                      maxHeight: MediaQuery.of(context).size.height * 0.62),
                  child: SingleChildScrollView(
                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-@@ -5217,8 +5325,7 @@
+@@ -5273,8 +5381,7 @@
                      // behind it. They are two different "nothing typed yet"
                      // panels (favourite shortcuts, recent searches) and belong
                      // on screen together, not competing for the same slot.
@@ -287,7 +287,7 @@
                        SearchHistoryList(
                          history: _history,
                          favorites: const [],
-@@ -5275,17 +5382,31 @@
+@@ -5331,17 +5438,31 @@
            // mode, and a street name upside down is worse than none.
            if (_isNavigating && _currentStreetName != null)
              Positioned(
@@ -330,7 +330,7 @@
                ),
              ),
  
-@@ -5299,15 +5420,14 @@
+@@ -5355,15 +5476,14 @@
            // be got rid of is one they stop reading.
            if (!_ztlNoticeDismissed && (_inZtl || _ztlPassingBy != null))
              Positioned(
@@ -348,7 +348,7 @@
                  child: GestureDetector(
                    // Vertical swipes dismiss too, without a Dismissible of
                    // their own: nesting two would leave neither able to claim
-@@ -5328,21 +5448,23 @@
+@@ -5384,21 +5504,37 @@
                ),
              ),
  
@@ -368,7 +368,21 @@
 -              left: 12,
 -              bottom: 88 + bottomInset + 12,
 +              left: 12 + voyagerCutoutL,
-+              bottom: 88 + voyagerSideInset + 12,
++              // VOYAGER: the same fixed offset in both orientations put this
++              // column in two different kinds of trouble. In portrait it
++              // undershot MapBottomBar (which sits at its own small baseline,
++              // not voyagerSideInset's full-chrome-height one) and the two
++              // overlapped. In landscape, stacked up from that same offset,
++              // the column's upper buttons reached into the display cutout's
++              // own band — the cutout sits roughly mid-edge vertically, not
++              // only inset horizontally, and voyagerCutoutL only ever
++              // accounted for the horizontal side of that. Portrait goes
++              // higher to clear the bar below it; landscape goes lower to
++              // clear the cutout above it — but not so low it lands back on
++              // MapBottomBar, which shares this same row in landscape: at 40
++              // the column's bottom edge still undershot the bar's top by
++              // 16dp, confirmed on-device. 70 clears it with margin to spare.
++              bottom: (voyagerLandscape ? 70 : 130) + voyagerSideInset,
                child: Column(mainAxisSize: MainAxisSize.min, children: [
 +                if (_hasRealFix)
 +                  MapFab(
@@ -380,7 +394,7 @@
                  MapFab(
                      onTap: _openPlanner,
                      colors: c,
-@@ -5420,8 +5542,14 @@
+@@ -5476,8 +5612,14 @@
            // ── RIGHT FABs ────────────────────────────────────────────────────────
            if (!_showSearch && !_showAlternatives && !_showPreview)
              Positioned(
@@ -397,12 +411,20 @@
                child: Column(mainAxisSize: MainAxisSize.min, children: [
                  CompassFab(
                    rotDeg: _camRotDeg,
-@@ -5451,16 +5579,6 @@
+@@ -5507,22 +5649,16 @@
                                : c.onAccent.withValues(alpha: 0.38),
                            size: 22),
                  ),
 -                if (_hasRealFix) ...[
--                  const SizedBox(height: 8),
++                // VOYAGER: the report FAB that used to sit here is dropped —
++                // it already lives in the LEFT FABs column above, and having
++                // it twice on screen at once was the actual duplication, not
++                // a placement choice worth keeping in both.
++                if (_hasRealFix &&
++                    _altitudeM != null &&
++                    (Hive.box('settings')
++                        .get('showAltitude', defaultValue: false) as bool)) ...[
+                   const SizedBox(height: 8),
 -                  // Same slot, same color, whether or not a trip is under
 -                  // way — a hazard can be reported from a standstill too.
 -                  MapFab(
@@ -410,11 +432,18 @@
 -                      colors: c,
 -                      child: Icon(Icons.report_problem_outlined,
 -                          color: c.onAccent, size: 22)),
--                ],
+-                  if (_altitudeM != null &&
+-                      (Hive.box('settings')
+-                          .get('showAltitude', defaultValue: false)
+-                          as bool)) ...[
+-                    const SizedBox(height: 8),
+-                    AltitudeBadge(altitudeM: _altitudeM!, colors: c),
+-                  ],
++                  AltitudeBadge(altitudeM: _altitudeM!, colors: c),
+                 ],
                  if (_isNavigating) ...[
                    const SizedBox(height: 8),
-                   // Adding a stop mid-journey takes the place the volume
-@@ -5473,6 +5591,12 @@
+@@ -5536,6 +5672,12 @@
                        colors: c,
                        child: Icon(Icons.add_location_alt_outlined,
                            color: c.onAccent, size: 22)),
@@ -427,7 +456,7 @@
                  ],
                ]),
              ),
-@@ -5480,7 +5604,7 @@
+@@ -5543,7 +5685,7 @@
            // ── ARRIVAL BANNER ───────────────────────────────────────────────────
            if (_showArrivalBanner)
              Positioned(
@@ -436,7 +465,7 @@
                left: 24,
                right: 24,
                child: Material(
-@@ -5518,8 +5642,14 @@
+@@ -5581,8 +5723,14 @@
            // user is looking at, and it floated on top of the preview card.
            if (_currentSpeedLimit != null && _showsSpeedLimitSign)
              Positioned(
@@ -453,7 +482,7 @@
                child: SpeedLimitSign(_currentSpeedLimit!),
              ),
  
-@@ -5532,7 +5662,11 @@
+@@ -5595,7 +5743,11 @@
                  ? NavPanel(
                      route: _route!,
                      speed: _speed,
@@ -466,7 +495,7 @@
                      colors: c,
                      onStop: _showExitNavigationDialog,
                      remainingDistM: _remainingDistM,
-@@ -5549,7 +5683,7 @@
+@@ -5612,7 +5764,7 @@
                          wikiQuery: _placeWikiQuery,
                          openingHours: _placeOpeningHours,
                          loading: _placeLoading,
@@ -475,7 +504,7 @@
                          colors: c,
                          onNavigate: () {
                            // Capture values BEFORE _closePlaceInfo() nulls them out.
-@@ -5569,7 +5703,7 @@
+@@ -5632,7 +5784,7 @@
                              label: _pendingLabel,
                              trafficEvents: _routeTrafficEvents(_previewRoute!),
                              trafficStatus: _trafficStatus(_previewRoute!),
@@ -484,7 +513,7 @@
                              colors: c,
                              transportMode: _transportMode,
                              onStart: _confirmPreview,
-@@ -5581,7 +5715,7 @@
+@@ -5644,7 +5796,7 @@
                                  itineraries: _transitItineraries,
                                  selected: _selectedTransit,
                                  colors: c,
@@ -493,7 +522,7 @@
                                  label: _pendingLabel,
                                  failed: _transitFailed,
                                  onSelect: (i) {
-@@ -5594,31 +5728,39 @@
+@@ -5657,31 +5809,39 @@
                                  onModeChanged: _recalculateForMode,
                                )
                              : _showAlternatives
@@ -558,7 +587,7 @@
            ),
  
            // ── ROUTE CALCULATION OVERLAY ────────────────────────────────────────
-@@ -5687,8 +5829,8 @@
+@@ -5750,8 +5910,8 @@
    /// waiting for the next GPS fix or the next trip.
    void _applyScreenPolicy() {
      final box = Hive.box('settings');

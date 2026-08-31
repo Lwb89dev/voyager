@@ -1,0 +1,545 @@
+--- a/lib/screens/maplibre_map_screen.dart	2026-08-28 21:17:34.946249973 +0200
++++ b/lib/screens/maplibre_map_screen.dart	2026-08-31 14:06:30.911146518 +0200
+@@ -246,7 +246,12 @@
+ }
+ 
+ class MaplibreMapScreen extends StatefulWidget {
+-  const MaplibreMapScreen({super.key});
++  // VOYAGER: see the identical note on MapScreen.onOpenAppSettings — this
++  // engine gets the same override for the same reason, so switching engines
++  // never brings back Roadstr's own native settings screen (and the
++  // duplicate Kokoro controls in it) through the back door.
++  final void Function(BuildContext)? onOpenAppSettings;
++  const MaplibreMapScreen({super.key, this.onOpenAppSettings});
+ 
+   @override
+   State<MaplibreMapScreen> createState() => _MaplibreMapScreenState();
+@@ -668,7 +673,8 @@
+     _activitySub = _nostr.activityStream.listen(_recordActivityNotification);
+     _roadSub = _nostr.stream.listen((events) {
+       if (mounted) {
+-        setState(() => _roadEvents = events.where((e) => !e.isExpired).toList());
++        setState(
++            () => _roadEvents = events.where((e) => !e.isExpired).toList());
+       }
+       if (_isNavigating) _checkNewTrafficOnRoute(events);
+     });
+@@ -1232,9 +1238,10 @@
+                       currentUser: Nip19().npubEncode(pubKey),
+                       eventJson: jsonEncode(unsigned),
+                     );
+-                    final signed =
+-                        jsonDecode(result['event'] as String) as Map<String, dynamic>;
+-                    await _nostr.publishRawEvent(signed, expectedUnsigned: unsigned);
++                    final signed = jsonDecode(result['event'] as String)
++                        as Map<String, dynamic>;
++                    await _nostr.publishRawEvent(signed,
++                        expectedUnsigned: unsigned);
+                   } else {
+                     await _nostr.confirmRoadEvent(
+                       eventId: event.id,
+@@ -1289,7 +1296,8 @@
+         currentUser: Nip19().npubEncode(pubKey),
+         eventJson: jsonEncode(unsigned),
+       );
+-      final signed = jsonDecode(result['event'] as String) as Map<String, dynamic>;
++      final signed =
++          jsonDecode(result['event'] as String) as Map<String, dynamic>;
+       await _nostr.publishRawEvent(signed, expectedUnsigned: unsigned);
+     } else {
+       final priv = await _secStorage.read(key: 'nostr_priv_hex');
+@@ -1313,7 +1321,8 @@
+ 
+   /// Someone other than the owner suggesting a speed-limit correction —
+   /// same MapScreen._publishSpeedLimitRequest.
+-  Future<void> _publishSpeedLimitRequest(RoadEvent event, int speedLimit) async {
++  Future<void> _publishSpeedLimitRequest(
++      RoadEvent event, int speedLimit) async {
+     final pubKey = await _secStorage.read(key: 'nostr_pub_hex');
+     final flavor = await _secStorage.read(key: 'nostr_flavor');
+     if (pubKey == null || flavor == null) {
+@@ -1331,7 +1340,8 @@
+         currentUser: Nip19().npubEncode(pubKey),
+         eventJson: jsonEncode(unsigned),
+       );
+-      final signed = jsonDecode(result['event'] as String) as Map<String, dynamic>;
++      final signed =
++          jsonDecode(result['event'] as String) as Map<String, dynamic>;
+       await _nostr.publishRawEvent(signed, expectedUnsigned: unsigned);
+     } else {
+       final priv = await _secStorage.read(key: 'nostr_priv_hex');
+@@ -1566,8 +1576,14 @@
+   bool _isPoi(NominatimResult result) {
+     const nonPoi = {'highway', 'boundary', 'landuse', 'postcode'};
+     const placeAddressTypes = {
+-      'city', 'town', 'village', 'hamlet', 'suburb', 'neighbourhood',
+-      'quarter', 'municipality',
++      'city',
++      'town',
++      'village',
++      'hamlet',
++      'suburb',
++      'neighbourhood',
++      'quarter',
++      'municipality',
+     };
+     if (result.cls == null) return false;
+     if (nonPoi.contains(result.cls)) return false;
+@@ -1602,7 +1618,8 @@
+     if (!mounted) return;
+     final lang = Localizations.localeOf(context).languageCode;
+     final results = await Future.wait<Object?>([
+-      WikiSearch.fetchWikiNearby(result.position.latitude, result.position.longitude,
++      WikiSearch.fetchWikiNearby(
++          result.position.latitude, result.position.longitude,
+           lang: lang, fallbackQuery: wikiQ, radiusM: 200),
+       _isPoi(result)
+           ? _poiSvc.nearestDetails(result.position,
+@@ -1625,8 +1642,9 @@
+     final requestGeneration = ++_placeRequestGeneration;
+     setState(() {
+       _placePoint = point;
+-      _placeAddress =
+-          (address?.trim().isNotEmpty ?? false) ? address!.trim() : preferredLabel;
++      _placeAddress = (address?.trim().isNotEmpty ?? false)
++          ? address!.trim()
++          : preferredLabel;
+       _placeLabel = preferredLabel;
+       _placeWiki = null;
+       _placeDetails = null;
+@@ -1643,7 +1661,8 @@
+         .take(3)
+         .join(', ');
+     setState(() {
+-      _placeAddress = dispParts.isEmpty ? (_placeAddress ?? preferredLabel) : dispParts;
++      _placeAddress =
++          dispParts.isEmpty ? (_placeAddress ?? preferredLabel) : dispParts;
+       _placeLabel = preferredLabel ?? geo?.label ?? _placeLabel;
+       _placeOpeningHours = geo?.openingHours;
+     });
+@@ -1803,7 +1822,8 @@
+     final from = _planFrom?.position ??
+         (_lastFix == null
+             ? null
+-            : LatLng(_lastFix!.position.latitude, _lastFix!.position.longitude));
++            : LatLng(
++                _lastFix!.position.latitude, _lastFix!.position.longitude));
+     if (from == null) {
+       _showSnack(AppLocalizations.of(context).acquiringGps);
+       return;
+@@ -1816,7 +1836,8 @@
+         if (stop != null) stop.position,
+     ];
+     _closePlanner();
+-    await _calculateRouteTo(to.position, label: to.label, fromPosition: from, via: via);
++    await _calculateRouteTo(to.position,
++        label: to.label, fromPosition: from, via: via);
+   }
+ 
+   Future<void> _onSearchSubmit(String query) async {
+@@ -1831,7 +1852,8 @@
+         _showSearch = false;
+         _searchResults = [];
+       });
+-      await _onDestinationPicked(favMatch.first.position, label: favMatch.first.label);
++      await _onDestinationPicked(favMatch.first.position,
++          label: favMatch.first.label);
+       return;
+     }
+     NominatimResult result;
+@@ -1915,11 +1937,14 @@
+   /// there both sets it active and starts navigation, so this never sets
+   /// [_route] itself, only populates [_alternatives].
+   Future<void> _calculateRouteTo(LatLng dest,
+-      {String? label, LatLng? fromPosition, List<LatLng> via = const []}) async {
++      {String? label,
++      LatLng? fromPosition,
++      List<LatLng> via = const []}) async {
+     final origin = fromPosition ??
+         (_lastFix == null
+             ? null
+-            : LatLng(_lastFix!.position.latitude, _lastFix!.position.longitude));
++            : LatLng(
++                _lastFix!.position.latitude, _lastFix!.position.longitude));
+     if (origin == null) {
+       // Routing from nowhere would be useless, but throwing the destination
+       // away makes the user find it again — the part that was actually
+@@ -2003,8 +2028,9 @@
+       final panelHeight =
+           (panelBox != null && panelBox.hasSize) ? panelBox.size.height : 260.0;
+       unawaited(liveController.fitBounds(
+-        bounds: LngLatBounds.fromPoints(
+-            [for (final p in pts) Geographic(lon: p.longitude, lat: p.latitude)]),
++        bounds: LngLatBounds.fromPoints([
++          for (final p in pts) Geographic(lon: p.longitude, lat: p.latitude)
++        ]),
+         padding: EdgeInsets.fromLTRB(48, 96, 48, panelHeight + 24),
+         pitch: 0,
+       ));
+@@ -2021,7 +2047,8 @@
+       _showAlternatives = false;
+       _showTransit = true;
+       _selectedTransit = 0;
+-      _transitItineraries = result is TransitPlan ? result.itineraries : const [];
++      _transitItineraries =
++          result is TransitPlan ? result.itineraries : const [];
+       _transitFailed = result is TransitFailure;
+     });
+     if (_transitItineraries.isNotEmpty) {
+@@ -2038,8 +2065,9 @@
+     final points = [for (final leg in itinerary.legs) ...leg.geometry];
+     if (points.length < 2) return;
+     unawaited(controller.fitBounds(
+-      bounds: LngLatBounds.fromPoints(
+-          [for (final p in points) Geographic(lon: p.longitude, lat: p.latitude)]),
++      bounds: LngLatBounds.fromPoints([
++        for (final p in points) Geographic(lon: p.longitude, lat: p.latitude)
++      ]),
+       padding: const EdgeInsets.fromLTRB(48, 96, 48, 260),
+       pitch: 0,
+     ));
+@@ -2130,7 +2158,8 @@
+         _avoidanceEnabled = false;
+         _avoidanceLoading = false;
+         _alternatives = standard;
+-        _selectedAlt = standard.isEmpty ? 0 : _selectedAlt.clamp(0, standard.length - 1);
++        _selectedAlt =
++            standard.isEmpty ? 0 : _selectedAlt.clamp(0, standard.length - 1);
+       });
+       _fitRoutesOnMap(standard);
+       return;
+@@ -2191,7 +2220,8 @@
+     });
+     final dest = _destination;
+     if (dest != null) {
+-      await _calculateRouteTo(dest, label: _pendingLabel, fromPosition: _routeOrigin);
++      await _calculateRouteTo(dest,
++          label: _pendingLabel, fromPosition: _routeOrigin);
+     }
+   }
+ 
+@@ -2602,8 +2632,8 @@
+     List<LatLng>? current;
+     for (var i = 0; i < polyline.length; i++) {
+       final p = polyline[i];
+-      final inJam =
+-          jams.any((ev) => dist.as(LengthUnit.Meter, p, ev.position) < thresholdM);
++      final inJam = jams
++          .any((ev) => dist.as(LengthUnit.Meter, p, ev.position) < thresholdM);
+       if (inJam) {
+         if (current == null && i > 0) current = [polyline[i - 1]];
+         current ??= [];
+@@ -2666,8 +2696,8 @@
+         actions: [
+           TextButton(
+             onPressed: () => Navigator.pop(context),
+-            child:
+-                Text(l.trafficContinue, style: TextStyle(color: c.textSecondary)),
++            child: Text(l.trafficContinue,
++                style: TextStyle(color: c.textSecondary)),
+           ),
+           FilledButton(
+             style: FilledButton.styleFrom(backgroundColor: c.accent),
+@@ -2691,7 +2721,8 @@
+   /// MapScreen mechanism, adapted to this screen's while-loop advancement
+   /// (which can skip several steps in one tick; the guard only ever cares
+   /// about the step actually current when it fires).
+-  void _armMissedTurnGuard({required int newNextIdx, required double distAtAdvance}) {
++  void _armMissedTurnGuard(
++      {required int newNextIdx, required double distAtAdvance}) {
+     _missedTurnTimer?.cancel();
+     final capturedStepIdx = _currentStepIdx;
+     final dest = _destination;
+@@ -2702,13 +2733,13 @@
+       if (route == null || dest == null || newNextIdx >= route.steps.length) {
+         return;
+       }
+-      final currentDist =
+-          (_stepCumDist[newNextIdx] - _routeProgressM).clamp(0.0, double.infinity);
++      final currentDist = (_stepCumDist[newNextIdx] - _routeProgressM)
++          .clamp(0.0, double.infinity);
+       final speed = _lastFix?.speedKmh ?? 0;
+       // Reroute if not meaningfully closer (< 50 m improvement) and moving.
+       if (currentDist > distAtAdvance - 50 && speed > 3) {
+-        final pos = LatLng(
+-            _lastFix!.position.latitude, _lastFix!.position.longitude);
++        final pos =
++            LatLng(_lastFix!.position.latitude, _lastFix!.position.longitude);
+         unawaited(_rerouteAndNavigate(pos, dest));
+       }
+     });
+@@ -2744,7 +2775,8 @@
+         : (_stepCumDist[_currentStepIdx + 1] - routeProgressM)
+             .clamp(0, double.infinity);
+     if (_currentStepIdx != prevStepIdx && !isLast) {
+-      _armMissedTurnGuard(newNextIdx: _currentStepIdx + 1, distAtAdvance: _distToNextStepM);
++      _armMissedTurnGuard(
++          newNextIdx: _currentStepIdx + 1, distAtAdvance: _distToNextStepM);
+     }
+     _checkArrival(pos, isLast);
+     if (_arrived) return;
+@@ -2761,8 +2793,9 @@
+   /// manoeuvre" convention as the in-app NavInstruction card.
+   void _updateNavNotification(RouteResult route) {
+     if (route.steps.isEmpty || !mounted) return;
+-    final nextIdx =
+-        _currentStepIdx + 1 < route.steps.length ? _currentStepIdx + 1 : _currentStepIdx;
++    final nextIdx = _currentStepIdx + 1 < route.steps.length
++        ? _currentStepIdx + 1
++        : _currentStepIdx;
+     final step = route.steps[nextIdx];
+     final distM = _distToNextStepM > 0 ? _distToNextStepM : step.distanceM;
+     final l = AppLocalizations.of(context);
+@@ -2860,8 +2893,7 @@
+       var instruction = route.steps[nextIdx].instruction;
+       final followIdx = nextIdx + 1;
+       final tail = followIdx < route.steps.length
+-          ? _chainedTail(route.steps[followIdx],
+-              route.steps[nextIdx].distanceM)
++          ? _chainedTail(route.steps[followIdx], route.steps[nextIdx].distanceM)
+           : null;
+       if (tail != null) {
+         instruction = AppLocalizations.of(context)
+@@ -3014,8 +3046,8 @@
+   Future<void> _checkSpeedCameraProximity() async {
+     if (!_isNavigating || !mounted) return;
+     const dist = Distance();
+-    final pos = LatLng(
+-        _lastFix!.position.latitude, _lastFix!.position.longitude);
++    final pos =
++        LatLng(_lastFix!.position.latitude, _lastFix!.position.longitude);
+     for (final ev in _roadEvents) {
+       if (ev.category != RoadCategory.speedCamera) continue;
+       if (_alertedCameraIds.contains(ev.id)) continue;
+@@ -3063,8 +3095,8 @@
+               ? Units.toDisplaySpeed(limit.toDouble()).round()
+               : limit;
+           final lang = Localizations.localeOf(context).languageCode;
+-          unawaited(_tts
+-              .speak(l.speedCameraVoiceAlert(display, Units.speedUnitForSpeech(lang))));
++          unawaited(_tts.speak(l.speedCameraVoiceAlert(
++              display, Units.speedUnitForSpeech(lang))));
+         } else {
+           unawaited(_tts.speak(l.categorySpeedCamera));
+         }
+@@ -3087,8 +3119,8 @@
+       RoadCategory.fog,
+       RoadCategory.ice,
+     };
+-    final pos = LatLng(
+-        _lastFix!.position.latitude, _lastFix!.position.longitude);
++    final pos =
++        LatLng(_lastFix!.position.latitude, _lastFix!.position.longitude);
+     final lang = Localizations.localeOf(context).languageCode;
+     for (final ev in _roadEvents) {
+       if (!alertCategories.contains(ev.category)) continue;
+@@ -3304,9 +3336,8 @@
+     final navShiftM = _navForwardShiftM;
+     final (targetLat, targetLng) = (_isNavigating && _headingMode)
+         ? (navShiftM != null
+-            ? CameraFollowEasing.shiftByMetres(
+-                data.position.latitude, data.position.longitude, rotDeg,
+-                navShiftM)
++            ? CameraFollowEasing.shiftByMetres(data.position.latitude,
++                data.position.longitude, rotDeg, navShiftM)
+             : CameraFollowEasing.navCameraCenter(
+                 data.position.latitude, data.position.longitude, rotDeg, zoom,
+                 screenHeightPx: MediaQuery.of(context).size.height,
+@@ -3462,8 +3493,8 @@
+     final controller = _controller;
+     if (controller == null || !mounted) return;
+     final screenSize = MediaQuery.of(context).size;
+-    final vehicle = Geographic(
+-        lon: fix.position.longitude, lat: fix.position.latitude);
++    final vehicle =
++        Geographic(lon: fix.position.longitude, lat: fix.position.latitude);
+     await controller.moveCamera(
+         center: vehicle, zoom: zoom, pitch: pitch, bearing: rotDeg);
+     if (!mounted || _controller == null) return;
+@@ -3478,8 +3509,7 @@
+     final marginPx = 24.0 + screenSize.height * 0.10;
+     final targetY = (screenSize.height - navPanelHeightPx - marginPx)
+         .clamp(0.0, screenSize.height);
+-    final behind =
+-        _controller!.toLngLat(Offset(screenSize.width / 2, targetY));
++    final behind = _controller!.toLngLat(Offset(screenSize.width / 2, targetY));
+     final aheadLat = 2 * vehicle.lat - behind.lat;
+     final aheadLng = 2 * vehicle.lon - behind.lon;
+     _navForwardShiftM = Geo.distanceM(
+@@ -3591,7 +3621,8 @@
+         ? _alternatives[_selectedAlt.clamp(0, _alternatives.length - 1)]
+         : null;
+     final activeRouteRuns = selectedAlt != null
+-        ? _splitByZtl(selectedAlt.polyline, _ztl.classifyPoints(selectedAlt.polyline))
++        ? _splitByZtl(
++            selectedAlt.polyline, _ztl.classifyPoints(selectedAlt.polyline))
+         : showRouteProgress
+             ? _remainingRouteRuns()
+             : _routeRuns;
+@@ -3601,10 +3632,12 @@
+               if (i != _selectedAlt) _alternatives[i].polyline
+           ]
+         : const <List<LatLng>>[];
+-    final completedRoutePts =
+-        showRouteProgress ? _routeProgressPolyline(completed: true) : const <LatLng>[];
+-    final trafficSegments =
+-        _route == null ? const <List<LatLng>>[] : _trafficSegments(_route!.polyline);
++    final completedRoutePts = showRouteProgress
++        ? _routeProgressPolyline(completed: true)
++        : const <LatLng>[];
++    final trafficSegments = _route == null
++        ? const <List<LatLng>>[]
++        : _trafficSegments(_route!.polyline);
+ 
+     return PopScope(
+       // Same split MapScreen's own PopScope uses: search and navigation both
+@@ -3775,7 +3808,8 @@
+                   for (final ev in _roadEvents.where((e) => !e.isExpired))
+                     Marker(
+                       point: Geographic(
+-                          lon: ev.position.longitude, lat: ev.position.latitude),
++                          lon: ev.position.longitude,
++                          lat: ev.position.latitude),
+                       size: const Size(36, 36),
+                       child: GestureDetector(
+                         onTap: () => unawaited(_showRoadEventDetail(ev)),
+@@ -3859,8 +3893,7 @@
+                               cursorColor: CursorColor.fromStorage(
+                                   Hive.box('settings')
+                                       .get(CursorColor.storageKey)),
+-                              ostrichIsMoving:
+-                                  (_lastFix?.speedKmh ?? 0) >= 1.0,
++                              ostrichIsMoving: (_lastFix?.speedKmh ?? 0) >= 1.0,
+                               ostrichSpeedKmh: _lastFix?.speedKmh ?? 0,
+                             )
+                           : _MaplibreCursor(
+@@ -3903,7 +3936,8 @@
+                 onMyLocation: () {
+                   setState(() {
+                     _planFrom = null;
+-                    _planFromCtrl.text = AppLocalizations.of(context).myLocation;
++                    _planFromCtrl.text =
++                        AppLocalizations.of(context).myLocation;
+                     _planResults = [];
+                     _planActiveField = 1;
+                   });
+@@ -4045,8 +4079,7 @@
+                         child: CircularProgressIndicator(
+                             strokeWidth: 2, color: c.accent)),
+                     const SizedBox(width: 8),
+-                    Text(
+-                        AppLocalizations.of(context).calculatingRoute,
++                    Text(AppLocalizations.of(context).calculatingRoute,
+                         style: TextStyle(color: c.textSecondary, fontSize: 12)),
+                   ]),
+                 ),
+@@ -4099,6 +4132,10 @@
+                 final step = steps[nextIdx];
+                 final nextStep =
+                     nextIdx + 1 < steps.length ? steps[nextIdx + 1] : null;
++                // VOYAGER: voiceMuted/onToggleVoice dropped — NavInstruction
++                // no longer renders that control itself (see the identical
++                // change and reasoning in map_screen.dart); the toggle below
++                // is this screen's own independently-docked replacement.
+                 return NavInstruction(
+                   step: step,
+                   nextStep: nextStep,
+@@ -4108,17 +4145,33 @@
+                   colors: c,
+                   topInset: MediaQuery.of(context).padding.top,
+                   distToNextM: _distToNextStepM,
+-                  voiceMuted: _voiceMuted,
+-                  onToggleVoice: () {
+-                    setState(() => _voiceMuted = !_voiceMuted);
+-                    // Same key MapScreen's own mute toggle writes — one
+-                    // app-wide voice preference, not a copy of it.
+-                    Hive.box('settings').put('voiceEnabled', !_voiceMuted);
+-                    if (_voiceMuted) unawaited(_tts.stop());
+-                  },
+                 );
+               }),
+             ),
++          // ── VOICE MUTE TOGGLE ────────────────────────────────────────────
++          // VOYAGER: independently docked top-right — see the identical
++          // control in map_screen.dart. Same guard as the instruction card
++          // above, since this replaces the toggle that used to live inside it.
++          if (_isNavigating && _route != null && !_showSearch)
++            Positioned(
++              top: MediaQuery.of(context).padding.top * 0.5 + 4,
++              right: 10 + MediaQuery.of(context).viewPadding.right,
++              child: MapFab(
++                onTap: () {
++                  setState(() => _voiceMuted = !_voiceMuted);
++                  Hive.box('settings').put('voiceEnabled', !_voiceMuted);
++                  if (_voiceMuted) unawaited(_tts.stop());
++                },
++                colors: c,
++                child: Icon(
++                    _voiceMuted
++                        ? Icons.volume_off_rounded
++                        : Icons.volume_up_rounded,
++                    color:
++                        c.onAccent.withValues(alpha: _voiceMuted ? 0.45 : 1.0),
++                    size: 22),
++              ),
++            ),
+           // ── PLACE INFO (search result / map tap, before committing) ────────
+           // Same widget MapScreen shows first — "where is this, what's
+           // here" — before the driver commits to routing anywhere.
+@@ -4384,10 +4437,23 @@
+           // MapScreen: re-planning and checking a saved spot are both
+           // pre-trip actions, reporting is not (it stays on the right, in
+           // both states).
++          //
++          // VOYAGER: bottom/left share Voyager's own row in landscape — the
++          // system inset alone, level with the chrome pill and MapBottomBar
++          // below — and stack above the full chrome height in portrait,
++          // clear of MapBottomBar. Same split as map_screen.dart's
++          // voyagerSideInset/voyagerCutoutL, kept inline here since this
++          // file never hoisted those into named locals. Left also clears the
++          // display cutout, which in landscape sits on this same long edge.
++          // 70, not 40: at 40 the column's bottom edge still undershot
++          // MapBottomBar's top by 16dp in landscape, confirmed on-device.
+           if (showingBottomBar)
+             Positioned(
+-              left: 12,
+-              bottom: MediaQuery.of(context).padding.bottom + 16,
++              left: 12 + MediaQuery.of(context).viewPadding.left,
++              bottom: MediaQuery.of(context).size.width >
++                      MediaQuery.of(context).size.height
++                  ? 70 + MediaQuery.of(context).viewPadding.bottom
++                  : 130 + MediaQuery.of(context).padding.bottom,
+               child: Column(mainAxisSize: MainAxisSize.min, children: [
+                 MapFab(
+                   onTap: _openPlanner,
+@@ -4412,19 +4478,29 @@
+           // ── BOTTOM BAR (notifications / profile / settings) ─────────────────
+           // Same widget MapScreen shows when nothing else claims the bottom —
+           // idle, no search, no route.
++          //
++          // VOYAGER: same landscape/portrait split as the LEFT FABs above —
++          // level with Voyager's chrome pill in landscape, stacked above it
++          // in portrait. Previously always the full panel inset, which in
++          // landscape floated this well above the chrome pill instead of
++          // sharing its row.
+           if (showingBottomBar)
+             Positioned(
+               left: 0,
+               right: 0,
+               bottom: 0,
+               child: MapBottomBar(
+-                bottomInset: MediaQuery.of(context).padding.bottom,
++                bottomInset: MediaQuery.of(context).size.width >
++                        MediaQuery.of(context).size.height
++                    ? MediaQuery.of(context).viewPadding.bottom
++                    : MediaQuery.of(context).padding.bottom,
+                 colors: c,
+                 pubkey: _myPubkey,
+                 profilePicture: _profilePicture,
+                 hasNostrLogin:
+                     _nostrFlavor == 'amber' || _nostrFlavor == 'nsec',
+                 onProfileReturn: () => unawaited(_refreshHomeIdentity()),
++                onMenuTap: widget.onOpenAppSettings,
+               ),
+             ),
+         ]),

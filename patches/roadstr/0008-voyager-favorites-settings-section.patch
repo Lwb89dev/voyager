@@ -1,0 +1,1049 @@
+--- /dev/null	2026-08-30 10:34:48.435794121 +0200
++++ b/lib/widgets/favorites_settings_section.dart	2026-08-30 21:37:51.842359722 +0200
+@@ -0,0 +1,1046 @@
++// VOYAGER: a self-contained extraction of the favourites + Nostr sync
++// section from Roadstr's own settings_screen.dart, so a host embedding
++// Roadstr (Voyager) can offer it from its own settings screen without
++// duplicating ~500 lines of tightly-coupled dialog and sync logic by hand.
++//
++// Deliberately independent of _SettingsScreenState: it loads its own
++// favourites list and Nostr identity in initState rather than reading them
++// off an enclosing screen, so it can be dropped into any parent. Roadstr's
++// own settings screen keeps its original inline copy — extracting that one
++// too, so both call through here, is a larger and riskier change to an
++// already very large file than this patch is trying to be.
++import 'dart:async';
++import 'dart:convert';
++import 'dart:isolate';
++import 'dart:typed_data';
++
++import 'package:file_picker/file_picker.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_secure_storage/flutter_secure_storage.dart';
++import 'package:hive_flutter/hive_flutter.dart';
++import 'package:latlong2/latlong.dart';
++
++import '../l10n/app_localizations.dart';
++import '../models/favorite_place.dart';
++import '../services/favorites_crypto.dart';
++import '../services/favorites_sync_service.dart';
++import '../services/routing_service.dart';
++import '../theme/app_theme.dart';
++
++/// Favourites: the list, add/edit, export/import, and Nostr sync (NIP-44,
++/// kind 30078) — everything under Roadstr's "Favourites" and "Sync" section
++/// headers, as two widgets so a host can place its own section header
++/// between them exactly as Roadstr's own settings screen does.
++class FavoritesListSection extends StatefulWidget {
++  final RoadstrColors colors;
++  const FavoritesListSection({super.key, required this.colors});
++
++  @override
++  State<FavoritesListSection> createState() => FavoritesListSectionState();
++}
++
++class FavoritesSyncSection extends StatefulWidget {
++  final RoadstrColors colors;
++  const FavoritesSyncSection({super.key, required this.colors});
++
++  @override
++  State<FavoritesSyncSection> createState() => _FavoritesSyncSectionState();
++}
++
++/// Shared state both halves read and write, so a favourite added in the list
++/// section is what the sync section pushes without either widget reaching
++/// into the other's private State.
++class _FavoritesStore extends ChangeNotifier {
++  static final instance = _FavoritesStore._();
++  _FavoritesStore._();
++
++  static const _maxImportBytes = 5 * 1024 * 1024;
++  static const _st = FlutterSecureStorage();
++
++  final Box _box = Hive.box('settings');
++  List<FavoritePlace> favorites = [];
++  String? nostrPub;
++  String? nostrPriv;
++  String? syncPassphrase;
++  bool syncBusy = false;
++  bool _loaded = false;
++  final syncSvc = FavoritesSyncService();
++
++  Future<void> ensureLoaded() async {
++    if (_loaded) return;
++    _loaded = true;
++    _loadFavorites();
++    nostrPub = await _st.read(key: 'nostr_pub_hex');
++    nostrPriv = await _st.read(key: 'nostr_priv_hex');
++    syncPassphrase = await _st.read(key: 'favorites_sync_passphrase');
++    notifyListeners();
++  }
++
++  void _loadFavorites() {
++    final raw = _box.get('favorites', defaultValue: <dynamic>[]) as List;
++    favorites = raw
++        .whereType<String>()
++        .map((s) {
++          try {
++            return FavoritePlace.fromMapSafe(jsonDecode(s) as Map);
++          } catch (_) {
++            return null;
++          }
++        })
++        .whereType<FavoritePlace>()
++        .take(FavoritePlace.maxStoredItems)
++        .toList();
++  }
++
++  void saveFavorites() {
++    if (favorites.length > FavoritePlace.maxStoredItems) {
++      favorites.removeRange(FavoritePlace.maxStoredItems, favorites.length);
++    }
++    _box.put('favorites', favorites.map((f) => jsonEncode(f.toMap())).toList());
++    notifyListeners();
++    _autoPush();
++  }
++
++  /// Best-effort background push after any local change, so a reinstall +
++  /// login restores favourites automatically. Silent — failures are ignored
++  /// and the user can still push/pull manually.
++  void _autoPush() {
++    if (nostrPub == null) return;
++    final favs = List<FavoritePlace>.of(favorites);
++    unawaited(syncSvc
++        .push(
++      favorites: favs,
++      pubKeyHex: nostrPub!,
++      privKeyHex: nostrPriv,
++      passphrase: syncPassphrase,
++    )
++        .then((ok) {
++      if (ok) {
++        _box.put('favoritesSyncLastAt', DateTime.now().millisecondsSinceEpoch);
++      }
++    }).catchError((_) {}));
++  }
++
++  void deleteFavorite(int idx) {
++    favorites.removeAt(idx);
++    saveFavorites();
++  }
++}
++
++class FavoritesListSectionState extends State<FavoritesListSection> {
++  final _store = _FavoritesStore.instance;
++
++  @override
++  void initState() {
++    super.initState();
++    _store.addListener(_onStoreChanged);
++    unawaited(_store.ensureLoaded().then((_) {
++      if (mounted) setState(() {});
++    }));
++  }
++
++  @override
++  void dispose() {
++    _store.removeListener(_onStoreChanged);
++    super.dispose();
++  }
++
++  void _onStoreChanged() {
++    if (mounted) setState(() {});
++  }
++
++  void _snack(String msg) {
++    if (!mounted) return;
++    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
++      content: Text(msg, style: const TextStyle(color: Colors.white)),
++      behavior: SnackBarBehavior.floating,
++      backgroundColor: const Color(0xFF1A1A2E),
++    ));
++  }
++
++  Future<void> _editFavoriteDialog(AppLocalizations l, RoadstrColors c,
++      {FavoritePlace? existing, int? existingIdx}) async {
++    final labelCtrl = TextEditingController(text: existing?.label ?? '');
++    final addressCtrl = TextEditingController(text: existing?.address ?? '');
++    final isEdit = existing != null;
++
++    List<NominatimResult> suggestions = [];
++    LatLng? pickedPosition = existing?.position;
++    String? error;
++    bool searching = false;
++    Timer? debounce;
++
++    await showDialog<void>(
++      context: context,
++      builder: (ctx) => StatefulBuilder(
++        builder: (ctx, setDlg) {
++          void onAddressChanged(String v) {
++            debounce?.cancel();
++            pickedPosition = null;
++            if (v.trim().length < 3) {
++              setDlg(() => suggestions = []);
++              return;
++            }
++            debounce = Timer(const Duration(milliseconds: 450), () async {
++              setDlg(() => searching = true);
++              final res = await RoutingService.search(v.trim());
++              if (ctx.mounted) {
++                setDlg(() {
++                  suggestions = res;
++                  searching = false;
++                });
++              }
++            });
++          }
++
++          return AlertDialog(
++            backgroundColor: c.surface2,
++            shape:
++                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
++            insetPadding:
++                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
++            title: Text(isEdit ? existing.label : l.addFavorite,
++                style: TextStyle(
++                    color: c.textPrimary, fontWeight: FontWeight.w700)),
++            content: SizedBox(
++              width: double.maxFinite,
++              child: SingleChildScrollView(
++                child: Column(mainAxisSize: MainAxisSize.min, children: [
++                  TextField(
++                    controller: labelCtrl,
++                    style: TextStyle(color: c.textPrimary, fontSize: 14),
++                    textCapitalization: TextCapitalization.words,
++                    decoration: InputDecoration(
++                      hintText: l.favoriteLabelHint,
++                      hintStyle: TextStyle(color: c.textSecondary),
++                      filled: true,
++                      fillColor: c.surface1,
++                      border: OutlineInputBorder(
++                          borderRadius: BorderRadius.circular(12),
++                          borderSide: BorderSide.none),
++                      contentPadding: const EdgeInsets.symmetric(
++                          horizontal: 14, vertical: 12),
++                    ),
++                  ),
++                  const SizedBox(height: 12),
++                  TextField(
++                    controller: addressCtrl,
++                    style: TextStyle(color: c.textPrimary, fontSize: 14),
++                    onChanged: onAddressChanged,
++                    decoration: InputDecoration(
++                      hintText: l.favoriteAddressHint,
++                      hintStyle: TextStyle(color: c.textSecondary),
++                      filled: true,
++                      fillColor: c.surface1,
++                      suffixIcon: searching
++                          ? Padding(
++                              padding: const EdgeInsets.all(12),
++                              child: SizedBox(
++                                  width: 16,
++                                  height: 16,
++                                  child: CircularProgressIndicator(
++                                      strokeWidth: 2, color: c.accent)))
++                          : null,
++                      border: OutlineInputBorder(
++                          borderRadius: BorderRadius.circular(12),
++                          borderSide: BorderSide.none),
++                      contentPadding: const EdgeInsets.symmetric(
++                          horizontal: 14, vertical: 12),
++                    ),
++                  ),
++                  if (suggestions.isNotEmpty) ...[
++                    const SizedBox(height: 4),
++                    Container(
++                      constraints: BoxConstraints(
++                          maxHeight: (MediaQuery.of(ctx).size.height * 0.35)
++                              .clamp(120.0, 220.0)),
++                      decoration: BoxDecoration(
++                        color: c.surface1,
++                        borderRadius: BorderRadius.circular(12),
++                        border: Border.all(color: c.border, width: 0.5),
++                      ),
++                      child: ListView.separated(
++                        shrinkWrap: true,
++                        padding: EdgeInsets.zero,
++                        itemCount: suggestions.length,
++                        separatorBuilder: (_, __) =>
++                            Divider(height: 0.5, color: c.border),
++                        itemBuilder: (_, i) {
++                          final s = suggestions[i];
++                          return ListTile(
++                            dense: true,
++                            leading: Text(s.emoji,
++                                style: const TextStyle(fontSize: 16)),
++                            title: Text(s.shortName,
++                                maxLines: 1,
++                                overflow: TextOverflow.ellipsis,
++                                style: TextStyle(
++                                    color: c.textPrimary, fontSize: 13)),
++                            subtitle: Text(
++                                s.displayName.split(',').take(3).join(', '),
++                                maxLines: 1,
++                                overflow: TextOverflow.ellipsis,
++                                style: TextStyle(
++                                    color: c.textSecondary, fontSize: 11)),
++                            onTap: () {
++                              addressCtrl.text =
++                                  s.displayName.split(',').take(3).join(', ');
++                              pickedPosition = s.position;
++                              setDlg(() => suggestions = []);
++                            },
++                          );
++                        },
++                      ),
++                    ),
++                  ],
++                  if (error != null) ...[
++                    const SizedBox(height: 8),
++                    Text(error!,
++                        style: const TextStyle(
++                            color: Colors.redAccent, fontSize: 12)),
++                  ],
++                ]),
++              ),
++            ),
++            actions: [
++              TextButton(
++                onPressed: () {
++                  debounce?.cancel();
++                  Navigator.pop(ctx);
++                },
++                child: Text(l.cancel, style: TextStyle(color: c.textSecondary)),
++              ),
++              FilledButton(
++                style: FilledButton.styleFrom(backgroundColor: c.accent),
++                onPressed: () async {
++                  final label = labelCtrl.text.trim();
++                  final address = addressCtrl.text.trim();
++                  if (label.isEmpty || address.isEmpty) return;
++                  debounce?.cancel();
++                  setDlg(() {
++                    error = null;
++                    suggestions = [];
++                  });
++
++                  LatLng? pos = pickedPosition;
++                  if (pos == null) {
++                    setDlg(() => searching = true);
++                    final res = await RoutingService.search(address);
++                    if (!ctx.mounted) return;
++                    setDlg(() => searching = false);
++                    if (res.isEmpty) {
++                      setDlg(() => error = l.favoriteGeocodingError);
++                      return;
++                    }
++                    pos = res.first.position;
++                  }
++
++                  final place = FavoritePlace(
++                      label: label, address: address, position: pos);
++                  if (isEdit && existingIdx != null) {
++                    _store.favorites[existingIdx] = place;
++                  } else {
++                    _store.favorites.add(place);
++                  }
++                  _store.saveFavorites();
++                  if (ctx.mounted) Navigator.pop(ctx);
++                },
++                child: Text(isEdit ? l.ok : l.addFavorite),
++              ),
++            ],
++          );
++        },
++      ),
++    );
++    debounce?.cancel();
++  }
++
++  Future<void> _exportFavorites() async {
++    final l = AppLocalizations.of(context);
++    final c = widget.colors;
++    if (_store.favorites.isEmpty) return;
++    final ctrl = TextEditingController();
++    var encryptIt = true;
++    final go = await showDialog<bool>(
++      context: context,
++      builder: (ctx) => StatefulBuilder(
++          builder: (ctx, setDlg) => AlertDialog(
++                backgroundColor: c.surface2,
++                shape: RoundedRectangleBorder(
++                    borderRadius: BorderRadius.circular(20)),
++                title: Text(l.exportFavoritesTitle,
++                    style: TextStyle(
++                        color: c.textPrimary, fontWeight: FontWeight.w700)),
++                content: Column(
++                    mainAxisSize: MainAxisSize.min,
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    children: [
++                      Text(l.exportFavoritesDesc,
++                          style: TextStyle(
++                              color: c.textSecondary,
++                              fontSize: 13,
++                              height: 1.4)),
++                      const SizedBox(height: 14),
++                      SwitchListTile(
++                        contentPadding: EdgeInsets.zero,
++                        dense: true,
++                        value: encryptIt,
++                        onChanged: (v) => setDlg(() => encryptIt = v),
++                        title: Text(l.exportEncryptToggle,
++                            style:
++                                TextStyle(color: c.textPrimary, fontSize: 13)),
++                        activeThumbColor: c.accent,
++                      ),
++                      if (encryptIt) ...[
++                        const SizedBox(height: 4),
++                        TextField(
++                          controller: ctrl,
++                          obscureText: true,
++                          autocorrect: false,
++                          onChanged: (_) => setDlg(() {}),
++                          style: TextStyle(color: c.textPrimary, fontSize: 14),
++                          decoration: InputDecoration(
++                            hintText: l.exportPasswordHint,
++                            hintStyle: TextStyle(color: c.textSecondary),
++                            filled: true,
++                            fillColor: c.surface1,
++                            border: OutlineInputBorder(
++                                borderRadius: BorderRadius.circular(12),
++                                borderSide: BorderSide.none),
++                            contentPadding: const EdgeInsets.symmetric(
++                                horizontal: 14, vertical: 12),
++                          ),
++                        ),
++                      ],
++                    ]),
++                actions: [
++                  TextButton(
++                      onPressed: () => Navigator.pop(ctx, false),
++                      child: Text(l.cancel,
++                          style: TextStyle(color: c.textSecondary))),
++                  FilledButton(
++                    style: FilledButton.styleFrom(backgroundColor: c.accent),
++                    onPressed: (!encryptIt || ctrl.text.isNotEmpty)
++                        ? () => Navigator.pop(ctx, true)
++                        : null,
++                    child: Text(l.exportButton,
++                        style: const TextStyle(color: Colors.white)),
++                  ),
++                ],
++              )),
++    );
++    if (go != true || !mounted) return;
++
++    final plaintext =
++        jsonEncode(_store.favorites.map((f) => f.toMap()).toList());
++    final Map<String, dynamic> envelope;
++    if (encryptIt && ctrl.text.isNotEmpty) {
++      envelope = {
++        'v': 1,
++        'encrypted': true,
++        ...await FavoritesCrypto.encryptAsync(plaintext, ctrl.text)
++      };
++    } else {
++      envelope = {'v': 1, 'encrypted': false, 'data': plaintext};
++    }
++    try {
++      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(envelope)));
++      final path = await FilePicker.saveFile(
++        fileName: 'roadstr_favorites.json',
++        type: FileType.custom,
++        allowedExtensions: ['json'],
++        bytes: bytes,
++      );
++      if (!mounted) return;
++      if (path != null) _snack(l.exportSuccessSnack);
++    } catch (_) {
++      if (mounted) _snack(l.exportFailedSnack);
++    }
++  }
++
++  Future<String?> _promptPassword(String title) {
++    final ctrl = TextEditingController();
++    final c = widget.colors;
++    return showDialog<String>(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        backgroundColor: c.surface2,
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
++        title:
++            Text(title, style: TextStyle(color: c.textPrimary, fontSize: 15)),
++        content: TextField(
++          controller: ctrl,
++          obscureText: true,
++          autocorrect: false,
++          autofocus: true,
++          style: TextStyle(color: c.textPrimary, fontSize: 14),
++          decoration: InputDecoration(
++            filled: true,
++            fillColor: c.surface1,
++            border: OutlineInputBorder(
++                borderRadius: BorderRadius.circular(12),
++                borderSide: BorderSide.none),
++            contentPadding:
++                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
++          ),
++          onSubmitted: (v) => Navigator.pop(ctx, v),
++        ),
++        actions: [
++          TextButton(
++              onPressed: () => Navigator.pop(ctx, null),
++              child: Text(AppLocalizations.of(ctx).cancel,
++                  style: TextStyle(color: c.textSecondary))),
++          FilledButton(
++            style: FilledButton.styleFrom(backgroundColor: c.accent),
++            onPressed: () => Navigator.pop(ctx, ctrl.text),
++            child: Text(AppLocalizations.of(ctx).ok,
++                style: const TextStyle(color: Colors.white)),
++          ),
++        ],
++      ),
++    );
++  }
++
++  Future<void> _importFavorites() async {
++    final l = AppLocalizations.of(context);
++    try {
++      final file = await FilePicker.pickFile(
++          type: FileType.custom, allowedExtensions: ['json']);
++      if (file == null) return;
++      if (file.size > _FavoritesStore._maxImportBytes) {
++        throw const FormatException('Favorites import is too large');
++      }
++      final bytes = await file.readAsBytes();
++      if (bytes.length > _FavoritesStore._maxImportBytes) {
++        throw const FormatException('Favorites import is too large');
++      }
++      final envelope = await Isolate.run(
++          () => jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>);
++      String plaintext;
++      if (envelope['encrypted'] == true) {
++        if (!mounted) return;
++        final password = await _promptPassword(l.importPasswordPrompt);
++        if (password == null || password.isEmpty) return;
++        plaintext = await Isolate.run(
++            () => FavoritesCrypto.decrypt(envelope, password));
++      } else {
++        plaintext = envelope['data'] as String;
++      }
++      final list = await Isolate.run(() => jsonDecode(plaintext) as List);
++      final imported = list
++          .whereType<Map>()
++          .map((m) => FavoritePlace.fromMapSafe(m))
++          .whereType<FavoritePlace>()
++          .take(FavoritePlace.maxStoredItems)
++          .toList();
++      if (!mounted) return;
++      for (final f in imported) {
++        final dup = _store.favorites.indexWhere((e) => e.label == f.label);
++        if (dup >= 0) {
++          _store.favorites[dup] = f;
++        } else {
++          _store.favorites.add(f);
++        }
++      }
++      _store.saveFavorites();
++      _snack(l.importSuccessSnack(imported.length));
++    } catch (_) {
++      if (mounted) _snack(l.importFailedSnack);
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    final c = widget.colors;
++    final l = AppLocalizations.of(context);
++    final favorites = _store.favorites;
++
++    return Container(
++      margin: const EdgeInsets.only(bottom: 8),
++      decoration: BoxDecoration(
++        color: c.surface2,
++        borderRadius: BorderRadius.circular(14),
++        border: Border.all(color: c.border, width: 0.5),
++      ),
++      child: Column(mainAxisSize: MainAxisSize.min, children: [
++        if (favorites.isNotEmpty)
++          ListView.separated(
++            shrinkWrap: true,
++            physics: const NeverScrollableScrollPhysics(),
++            padding: EdgeInsets.zero,
++            itemCount: favorites.length,
++            separatorBuilder: (_, __) => Divider(height: 0.5, color: c.border),
++            itemBuilder: (_, i) {
++              final fav = favorites[i];
++              return ListTile(
++                dense: true,
++                onTap: () =>
++                    _editFavoriteDialog(l, c, existing: fav, existingIdx: i),
++                leading: Container(
++                  width: 32,
++                  height: 32,
++                  decoration: BoxDecoration(
++                      color: c.accentSoft,
++                      borderRadius: BorderRadius.circular(8)),
++                  child:
++                      Icon(Icons.favorite_rounded, color: c.accent, size: 16),
++                ),
++                title: Text(fav.label,
++                    style: TextStyle(
++                        color: c.textPrimary,
++                        fontSize: 14,
++                        fontWeight: FontWeight.w600)),
++                subtitle: Text(fav.address,
++                    maxLines: 1,
++                    overflow: TextOverflow.ellipsis,
++                    style: TextStyle(color: c.textSecondary, fontSize: 12)),
++                trailing: IconButton(
++                  icon: Icon(Icons.delete_outline_rounded,
++                      color: c.textSecondary, size: 20),
++                  onPressed: () => _store.deleteFavorite(i),
++                ),
++              );
++            },
++          ),
++        ListTile(
++          dense: true,
++          leading: Container(
++            width: 32,
++            height: 32,
++            decoration: BoxDecoration(
++                color: c.accentSoft, borderRadius: BorderRadius.circular(8)),
++            child: Icon(Icons.add_rounded, color: c.accent, size: 18),
++          ),
++          title: Text(l.addFavorite,
++              style: TextStyle(
++                  color: c.accent, fontSize: 14, fontWeight: FontWeight.w500)),
++          onTap: () => _editFavoriteDialog(l, c),
++        ),
++        if (favorites.isNotEmpty) ...[
++          Divider(height: 0.5, color: c.border),
++          ListTile(
++            dense: true,
++            leading: Container(
++              width: 32,
++              height: 32,
++              decoration: BoxDecoration(
++                  color: c.surface3, borderRadius: BorderRadius.circular(8)),
++              child: Icon(Icons.file_download_outlined,
++                  color: c.textSecondary, size: 16),
++            ),
++            title: Text(l.exportFavoritesTitle,
++                style: TextStyle(
++                    color: c.textPrimary,
++                    fontSize: 14,
++                    fontWeight: FontWeight.w500)),
++            onTap: _exportFavorites,
++          ),
++        ],
++        Divider(height: 0.5, color: c.border),
++        ListTile(
++          dense: true,
++          leading: Container(
++            width: 32,
++            height: 32,
++            decoration: BoxDecoration(
++                color: c.surface3, borderRadius: BorderRadius.circular(8)),
++            child: Icon(Icons.file_upload_outlined,
++                color: c.textSecondary, size: 16),
++          ),
++          title: Text(l.importFavoritesTitle,
++              style: TextStyle(
++                  color: c.textPrimary,
++                  fontSize: 14,
++                  fontWeight: FontWeight.w500)),
++          onTap: _importFavorites,
++        ),
++      ]),
++    );
++  }
++}
++
++class _FavoritesSyncSectionState extends State<FavoritesSyncSection> {
++  final _store = _FavoritesStore.instance;
++
++  @override
++  void initState() {
++    super.initState();
++    _store.addListener(_onStoreChanged);
++    unawaited(_store.ensureLoaded().then((_) {
++      if (mounted) setState(() {});
++    }));
++  }
++
++  @override
++  void dispose() {
++    _store.removeListener(_onStoreChanged);
++    super.dispose();
++  }
++
++  void _onStoreChanged() {
++    if (mounted) setState(() {});
++  }
++
++  void _snack(String msg) {
++    if (!mounted) return;
++    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
++      content: Text(msg, style: const TextStyle(color: Colors.white)),
++      behavior: SnackBarBehavior.floating,
++      backgroundColor: const Color(0xFF1A1A2E),
++    ));
++  }
++
++  Future<String?> _promptPassword(String title) {
++    final ctrl = TextEditingController();
++    final c = widget.colors;
++    return showDialog<String>(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        backgroundColor: c.surface2,
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
++        title:
++            Text(title, style: TextStyle(color: c.textPrimary, fontSize: 15)),
++        content: TextField(
++          controller: ctrl,
++          obscureText: true,
++          autocorrect: false,
++          autofocus: true,
++          style: TextStyle(color: c.textPrimary, fontSize: 14),
++          decoration: InputDecoration(
++            filled: true,
++            fillColor: c.surface1,
++            border: OutlineInputBorder(
++                borderRadius: BorderRadius.circular(12),
++                borderSide: BorderSide.none),
++            contentPadding:
++                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
++          ),
++          onSubmitted: (v) => Navigator.pop(ctx, v),
++        ),
++        actions: [
++          TextButton(
++              onPressed: () => Navigator.pop(ctx, null),
++              child: Text(AppLocalizations.of(ctx).cancel,
++                  style: TextStyle(color: c.textSecondary))),
++          FilledButton(
++            style: FilledButton.styleFrom(backgroundColor: c.accent),
++            onPressed: () => Navigator.pop(ctx, ctrl.text),
++            child: Text(AppLocalizations.of(ctx).ok,
++                style: const TextStyle(color: Colors.white)),
++          ),
++        ],
++      ),
++    );
++  }
++
++  Future<void> _pushSync() async {
++    final l = AppLocalizations.of(context);
++    if (_store.nostrPub == null || _store.syncBusy) return;
++    setState(() => _store.syncBusy = true);
++    final ok = await _store.syncSvc.push(
++        favorites: _store.favorites,
++        pubKeyHex: _store.nostrPub!,
++        privKeyHex: _store.nostrPriv,
++        passphrase: _store.syncPassphrase);
++    if (!mounted) return;
++    setState(() => _store.syncBusy = false);
++    if (ok) {
++      _store._box
++          .put('favoritesSyncLastAt', DateTime.now().millisecondsSinceEpoch);
++    }
++    _snack(ok ? l.syncSuccessSnack : l.syncFailedSnack);
++  }
++
++  Future<void> _pullSync() async {
++    final l = AppLocalizations.of(context);
++    if (_store.nostrPub == null || _store.syncBusy) return;
++    setState(() => _store.syncBusy = true);
++    var result = await _store.syncSvc.pull(
++        pubKeyHex: _store.nostrPub!,
++        privKeyHex: _store.nostrPriv,
++        passphrase: _store.syncPassphrase);
++    if (!mounted) return;
++    if (result.needsPassphrase) {
++      final entered = await _promptPassword(l.importPasswordPrompt);
++      if (!mounted) return;
++      if (entered != null && entered.isNotEmpty) {
++        result = await _store.syncSvc.pull(
++            pubKeyHex: _store.nostrPub!,
++            privKeyHex: _store.nostrPriv,
++            passphrase: entered);
++        if (!mounted) return;
++        if (result.favorites != null) {
++          await _FavoritesStore._st
++              .write(key: 'favorites_sync_passphrase', value: entered);
++          _store.syncPassphrase = entered;
++        }
++      }
++    }
++    setState(() => _store.syncBusy = false);
++    final fetched = result.favorites;
++    if (fetched == null) {
++      _snack(l.syncFailedSnack);
++      return;
++    }
++    for (final f in fetched) {
++      final dup = _store.favorites.indexWhere((e) => e.label == f.label);
++      if (dup >= 0) {
++        _store.favorites[dup] = f;
++      } else {
++        _store.favorites.add(f);
++      }
++    }
++    _store.saveFavorites();
++    _store._box
++        .put('favoritesSyncLastAt', DateTime.now().millisecondsSinceEpoch);
++    _snack(l.syncSuccessSnack);
++  }
++
++  Future<void> _editSyncPassphrase() async {
++    final l = AppLocalizations.of(context);
++    final c = widget.colors;
++    final ctrl = TextEditingController();
++    final saved = await showDialog<bool>(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        backgroundColor: c.surface2,
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
++        title: Text(l.syncPassphraseTitle,
++            style: TextStyle(
++                color: c.textPrimary,
++                fontSize: 15,
++                fontWeight: FontWeight.w700)),
++        content: Column(
++            mainAxisSize: MainAxisSize.min,
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              Text(l.syncPassphraseDesc,
++                  style: TextStyle(
++                      color: c.textSecondary, fontSize: 12.5, height: 1.5)),
++              const SizedBox(height: 12),
++              TextField(
++                controller: ctrl,
++                obscureText: true,
++                autocorrect: false,
++                autofocus: true,
++                style: TextStyle(color: c.textPrimary, fontSize: 14),
++                decoration: InputDecoration(
++                  hintText: l.exportPasswordHint,
++                  hintStyle: TextStyle(color: c.textSecondary),
++                  filled: true,
++                  fillColor: c.surface1,
++                  border: OutlineInputBorder(
++                      borderRadius: BorderRadius.circular(12),
++                      borderSide: BorderSide.none),
++                  contentPadding:
++                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
++                ),
++              ),
++            ]),
++        actions: [
++          TextButton(
++              onPressed: () => Navigator.pop(ctx, false),
++              child: Text(l.cancel, style: TextStyle(color: c.textSecondary))),
++          FilledButton(
++            style: FilledButton.styleFrom(backgroundColor: c.accent),
++            onPressed: () => Navigator.pop(ctx, true),
++            child: Text(l.ok, style: const TextStyle(color: Colors.white)),
++          ),
++        ],
++      ),
++    );
++    if (saved != true || !mounted) return;
++    if (ctrl.text.isEmpty) {
++      await _FavoritesStore._st.delete(key: 'favorites_sync_passphrase');
++      _store.syncPassphrase = null;
++    } else {
++      await _FavoritesStore._st
++          .write(key: 'favorites_sync_passphrase', value: ctrl.text);
++      _store.syncPassphrase = ctrl.text;
++    }
++    if (!mounted) return;
++    setState(() {});
++  }
++
++  Future<void> _editCustomSyncRelay() async {
++    final l = AppLocalizations.of(context);
++    final c = widget.colors;
++    final ctrl = TextEditingController(text: _store.syncSvc.customRelay ?? '');
++    final saved = await showDialog<bool>(
++      context: context,
++      builder: (ctx) => AlertDialog(
++        backgroundColor: c.surface2,
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
++        title: Text(l.syncCustomRelayTitle,
++            style: TextStyle(
++                color: c.textPrimary,
++                fontSize: 15,
++                fontWeight: FontWeight.w700)),
++        content: Column(
++            mainAxisSize: MainAxisSize.min,
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              Text(l.syncCustomRelayDesc,
++                  style: TextStyle(
++                      color: c.textSecondary, fontSize: 12.5, height: 1.5)),
++              const SizedBox(height: 12),
++              TextField(
++                controller: ctrl,
++                autocorrect: false,
++                autofocus: true,
++                keyboardType: TextInputType.url,
++                style: TextStyle(color: c.textPrimary, fontSize: 14),
++                decoration: InputDecoration(
++                  hintText: 'wss://relay.example.com',
++                  hintStyle: TextStyle(color: c.textSecondary),
++                  filled: true,
++                  fillColor: c.surface1,
++                  border: OutlineInputBorder(
++                      borderRadius: BorderRadius.circular(12),
++                      borderSide: BorderSide.none),
++                  contentPadding:
++                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
++                ),
++              ),
++            ]),
++        actions: [
++          TextButton(
++              onPressed: () => Navigator.pop(ctx, false),
++              child: Text(l.cancel, style: TextStyle(color: c.textSecondary))),
++          FilledButton(
++            style: FilledButton.styleFrom(backgroundColor: c.accent),
++            onPressed: () => Navigator.pop(ctx, true),
++            child: Text(l.ok, style: const TextStyle(color: Colors.white)),
++          ),
++        ],
++      ),
++    );
++    if (saved != true || !mounted) return;
++    final typed = ctrl.text.trim();
++    if (typed.isEmpty) {
++      await _store._box.delete(FavoritesSyncService.kCustomRelayKey);
++      if (!mounted) return;
++      setState(() {});
++      return;
++    }
++    final normalised = FavoritesSyncService.normaliseRelayUrl(typed);
++    if (normalised == null) {
++      _snack(l.syncCustomRelayInvalid);
++      return;
++    }
++    await _store._box.put(FavoritesSyncService.kCustomRelayKey, normalised);
++    if (!mounted) return;
++    setState(() {});
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    final c = widget.colors;
++    final l = AppLocalizations.of(context);
++
++    return Container(
++      margin: const EdgeInsets.only(bottom: 8),
++      padding: const EdgeInsets.all(14),
++      decoration: BoxDecoration(
++        color: c.surface2,
++        borderRadius: BorderRadius.circular(14),
++        border: Border.all(color: c.border, width: 0.5),
++      ),
++      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
++        Text(l.syncFavoritesDesc,
++            style:
++                TextStyle(color: c.textSecondary, fontSize: 12, height: 1.5)),
++        const SizedBox(height: 12),
++        if (_store.nostrPub == null)
++          Text(l.syncNoIdentity,
++              style: TextStyle(
++                  color: c.textSecondary,
++                  fontSize: 12,
++                  fontStyle: FontStyle.italic))
++        else ...[
++          Row(children: [
++            Expanded(
++                child: OutlinedButton.icon(
++              onPressed: _store.syncBusy ? null : _pushSync,
++              style: OutlinedButton.styleFrom(
++                side: BorderSide(color: c.border),
++                shape: RoundedRectangleBorder(
++                    borderRadius: BorderRadius.circular(10)),
++                padding: const EdgeInsets.symmetric(vertical: 10),
++              ),
++              icon:
++                  Icon(Icons.cloud_upload_outlined, color: c.accent, size: 16),
++              label: Text(l.syncNowButton,
++                  style: TextStyle(color: c.textPrimary, fontSize: 12)),
++            )),
++            const SizedBox(width: 8),
++            Expanded(
++                child: OutlinedButton.icon(
++              onPressed: _store.syncBusy ? null : _pullSync,
++              style: OutlinedButton.styleFrom(
++                side: BorderSide(color: c.border),
++                shape: RoundedRectangleBorder(
++                    borderRadius: BorderRadius.circular(10)),
++                padding: const EdgeInsets.symmetric(vertical: 10),
++              ),
++              icon: Icon(Icons.cloud_download_outlined,
++                  color: c.accent, size: 16),
++              label: Text(l.syncPullButton,
++                  style: TextStyle(color: c.textPrimary, fontSize: 12)),
++            )),
++          ]),
++          const SizedBox(height: 8),
++          ListTile(
++            dense: true,
++            contentPadding: EdgeInsets.zero,
++            leading: Icon(
++              _store.syncPassphrase != null
++                  ? Icons.lock_rounded
++                  : Icons.lock_open_rounded,
++              color: _store.syncPassphrase != null ? c.accent : c.textSecondary,
++              size: 18,
++            ),
++            title: Text(l.syncPassphraseTitle,
++                style: TextStyle(
++                    color: c.textPrimary,
++                    fontSize: 13,
++                    fontWeight: FontWeight.w500)),
++            onTap: _editSyncPassphrase,
++          ),
++          ListTile(
++            dense: true,
++            contentPadding: EdgeInsets.zero,
++            leading: Icon(
++              Icons.dns_outlined,
++              color: _store.syncSvc.customRelay != null
++                  ? c.accent
++                  : c.textSecondary,
++              size: 18,
++            ),
++            title: Text(l.syncCustomRelayTitle,
++                style: TextStyle(
++                    color: c.textPrimary,
++                    fontSize: 13,
++                    fontWeight: FontWeight.w500)),
++            subtitle: _store.syncSvc.customRelay == null
++                ? null
++                : Text(_store.syncSvc.customRelay!,
++                    maxLines: 1,
++                    overflow: TextOverflow.ellipsis,
++                    style: TextStyle(color: c.textSecondary, fontSize: 11)),
++            onTap: _editCustomSyncRelay,
++          ),
++          if (_store.syncBusy) ...[
++            const SizedBox(height: 10),
++            Center(
++                child: SizedBox(
++                    width: 16,
++                    height: 16,
++                    child: CircularProgressIndicator(
++                        strokeWidth: 2, color: c.accent))),
++          ],
++        ],
++      ]),
++    );
++  }
++}

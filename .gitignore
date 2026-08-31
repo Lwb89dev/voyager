@@ -42,6 +42,7 @@ app.*.map.json
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
+/android/build/
 /android/app/release
 
 # Local SDK paths — machine-specific, never portable between checkouts.

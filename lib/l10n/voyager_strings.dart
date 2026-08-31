@@ -146,7 +146,19 @@ class VoyagerStrings {
   String get settings => _('Settings', 'Impostazioni');
   String get sectionMusic => _('MUSIC', 'MUSICA');
   String get sectionVoice => _('VOICE', 'VOCE');
-  String get sectionMapTheme => _('MAP THEME', 'TEMA MAPPA');
+  String get sectionMapTheme => _('MAP & NAVIGATION', 'MAPPA E NAVIGAZIONE');
+  String get mapEngine => _('Map engine', 'Motore mappa');
+  String get mapEngineWhy => _(
+        'MapLibre: tilt and camera rotation, native styling, search by category and favourites, multi-stop routes, toll/motorway-avoiding alternatives, public transit, full turn-by-turn with rerouting, ZTL, speed cameras, parking, reports, compass. Off falls back to the original OSM renderer.',
+        'MapLibre: inclinazione e rotazione camera, styling nativo, ricerca per categoria e preferiti, tappe multiple, alternative con esclusione autostrade/pedaggi, trasporto pubblico, navigazione completa con reroute, ZTL, autovelox, parcheggio, segnalazioni, bussola. Disattivato torna al renderer OSM originale.',
+      );
+  String get speedometerStyle => _('Speedometer style', 'Stile tachimetro');
+  String get cursorStyle => _('Vehicle marker', 'Icona veicolo');
+  String get showAltitude => _('Show altitude', 'Mostra altitudine');
+  String get showAltitudeWhy => _(
+        'A small badge next to the compass, when the device can report one.',
+        'Un piccolo indicatore accanto alla bussola, quando il dispositivo può fornirla.',
+      );
   String get mapTheme => _('Theme', 'Tema');
   String get autoDark => _('Automatic dark theme', 'Tema scuro automatico');
   String get autoDarkWhy => _(

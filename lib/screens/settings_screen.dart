@@ -5,6 +5,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roadstr/l10n/app_localizations.dart';
 import 'package:roadstr/theme/app_theme.dart';
 import 'package:roadstr/theme/theme_provider.dart';
+import 'package:roadstr/widgets/cursor_painter.dart';
+import 'package:roadstr/widgets/favorites_settings_section.dart';
+import 'package:roadstr/widgets/speedometer_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -138,6 +141,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) =>
                       setState(() => _box.put('imperialUnits', value)),
                 ),
+                // VOYAGER: the four rows below live in Roadstr's own settings
+                // screen too — brought in here because Voyager's menu button
+                // opens this screen instead, and a driver still needs to
+                // reach them from somewhere. Kokoro's own settings are the
+                // one section deliberately *not* mirrored the same way: see
+                // KokoroVoiceCard's doc for why that one stays Voyager-only.
+                _SwitchRow(
+                  vc: vc,
+                  title: s.mapEngine,
+                  subtitle: s.mapEngineWhy,
+                  value:
+                      (_box.get('mapEngine', defaultValue: 'osm') as String) ==
+                          'maplibre',
+                  onChanged: (value) => setState(
+                      () => _box.put('mapEngine', value ? 'maplibre' : 'osm')),
+                ),
+                _SpeedometerStyleRow(
+                  s: s,
+                  vc: vc,
+                  current: SpeedometerStyle.fromStorage(
+                      _box.get(SpeedometerStyle.storageKey)),
+                  onChanged: (style) => setState(
+                      () => _box.put(SpeedometerStyle.storageKey, style.name)),
+                ),
+                _CursorStyleRow(
+                  s: s,
+                  vc: vc,
+                  current:
+                      CursorStyle.fromStorage(_box.get(CursorStyle.storageKey)),
+                  onChanged: (style) => setState(
+                      () => _box.put(CursorStyle.storageKey, style.name)),
+                ),
+                _SwitchRow(
+                  vc: vc,
+                  title: s.showAltitude,
+                  subtitle: s.showAltitudeWhy,
+                  value: _box.get('showAltitude', defaultValue: false) as bool,
+                  onChanged: (value) =>
+                      setState(() => _box.put('showAltitude', value)),
+                ),
+                const SizedBox(height: AutomotiveConfig.sectionGap),
+                // VOYAGER: Roadstr's own widgets, embedded rather than
+                // reimplemented — the list/export/import/sync logic is
+                // substantial enough that a second hand-written copy would
+                // drift from the original the first time either one changed.
+                // They read Roadstr's own colour extension directly off
+                // ThemeProvider rather than through Theme.of(context), which
+                // this screen's own VoyagerScope theme does not carry.
+                Builder(builder: (context) {
+                  final rc = context
+                      .watch<ThemeProvider>()
+                      .effectiveThemeData
+                      .extension<RoadstrColors>()!;
+                  final l = AppLocalizations.of(context);
+                  return Column(children: [
+                    _SectionHeader(l.sectionFavorites, vc: vc),
+                    FavoritesListSection(colors: rc),
+                    const SizedBox(height: AutomotiveConfig.gutter),
+                    _SectionHeader(l.syncFavoritesTitle, vc: vc),
+                    FavoritesSyncSection(colors: rc),
+                  ]);
+                }),
                 const SizedBox(height: AutomotiveConfig.sectionGap),
                 _SectionHeader(s.sectionDisplay, vc: vc),
                 _SwitchRow(
@@ -597,6 +662,126 @@ class _MapThemeRow extends StatelessWidget {
                     value: id,
                     child: Text(id.localizedLabel(l)),
                   ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The vehicle-speed gauge's own visual style — Roadstr's five, picked here
+/// rather than only in Roadstr's own settings screen. Voyager's menu button
+/// opens this screen instead of Roadstr's own, so anything a driver would
+/// otherwise only find there has to live here too.
+class _SpeedometerStyleRow extends StatelessWidget {
+  final VoyagerStrings s;
+  final VoyagerPalette vc;
+  final SpeedometerStyle current;
+  final ValueChanged<SpeedometerStyle> onChanged;
+
+  const _SpeedometerStyleRow({
+    required this.s,
+    required this.vc,
+    required this.current,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    String label(SpeedometerStyle style) => switch (style) {
+          SpeedometerStyle.classic => l.speedometerClassic,
+          SpeedometerStyle.digital => l.speedometerDigital,
+          SpeedometerStyle.analog => l.speedometerAnalog,
+          SpeedometerStyle.sport => l.speedometerSport,
+          SpeedometerStyle.minimal => l.speedometerMinimal,
+        };
+
+    return _Row(
+      vc: vc,
+      child: Row(
+        children: [
+          Icon(Icons.speed_rounded, color: vc.accentLight, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(s.speedometerStyle,
+                style: TextStyle(color: vc.textPrimary, fontSize: 14)),
+          ),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<SpeedometerStyle>(
+              value: current,
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+              dropdownColor: vc.surfaceRaised,
+              borderRadius: BorderRadius.circular(14),
+              style: TextStyle(color: vc.textPrimary, fontSize: 13),
+              items: [
+                for (final style in SpeedometerStyle.values)
+                  DropdownMenuItem(value: style, child: Text(label(style))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The cursor drawn at the driver's own position — Roadstr's seven driving
+/// styles. Same reasoning as [_SpeedometerStyleRow].
+class _CursorStyleRow extends StatelessWidget {
+  final VoyagerStrings s;
+  final VoyagerPalette vc;
+  final CursorStyle current;
+  final ValueChanged<CursorStyle> onChanged;
+
+  const _CursorStyleRow({
+    required this.s,
+    required this.vc,
+    required this.current,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    String label(CursorStyle style) => switch (style) {
+          CursorStyle.arrow => l.cursorStandard,
+          CursorStyle.formula1 => l.cursorFormula1,
+          CursorStyle.suv => l.cursorSuv,
+          CursorStyle.racing => l.cursorRacing,
+          CursorStyle.electric => l.cursorElectric,
+          CursorStyle.city => l.cursorCity,
+          CursorStyle.classic500 => l.cursorClassic500,
+          CursorStyle.bicycle || CursorStyle.ostrich => style.name,
+        };
+
+    return _Row(
+      vc: vc,
+      child: Row(
+        children: [
+          Icon(Icons.directions_car_filled_rounded,
+              color: vc.accentLight, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(s.cursorStyle,
+                style: TextStyle(color: vc.textPrimary, fontSize: 14)),
+          ),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<CursorStyle>(
+              value: current,
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+              dropdownColor: vc.surfaceRaised,
+              borderRadius: BorderRadius.circular(14),
+              style: TextStyle(color: vc.textPrimary, fontSize: 13),
+              items: [
+                for (final style in CursorStyle.drivingStyles)
+                  DropdownMenuItem(value: style, child: Text(label(style))),
               ],
             ),
           ),

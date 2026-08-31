@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:roadstr/screens/map_screen.dart';
+import 'package:roadstr/screens/maplibre_map_screen.dart';
 import 'package:roadstr/theme/theme_provider.dart';
+import 'package:roadstr/utils/settings_listenable.dart';
 
 import '../../models/gesture_event.dart';
 import '../../models/plugin_manifest.dart';
@@ -13,10 +16,11 @@ import 'navigation_state.dart';
 /// Where Roadstr's own bottom bar sends its menu icon, under Voyager.
 ///
 /// A static top-level function rather than a closure so it stays a constant
-/// expression — [RoadstrPlugin._map] is `const`, and a lambda capturing
-/// instance state could not be. Pushed with the [BuildContext] MapBottomBar's
-/// own `onTap` already has, not one captured earlier: this is invoked once,
-/// at tap time, and any context from construction time could be stale.
+/// expression — both [RoadstrPlugin._mapOsm] and [RoadstrPlugin._mapMaplibre]
+/// are `const`, and a lambda capturing instance state could not be. Pushed
+/// with the [BuildContext] MapBottomBar's own `onTap` already has, not one
+/// captured earlier: this is invoked once, at tap time, and any context from
+/// construction time could be stale.
 void _openVoyagerSettings(BuildContext context) => Navigator.of(context)
     .push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
 
@@ -34,14 +38,21 @@ void _openVoyagerSettings(BuildContext context) => Navigator.of(context)
 /// like "navigate home" will need a small controller surface added on the
 /// Roadstr side; until then they are not offered, rather than faked.
 class RoadstrPlugin extends BasePlugin {
-  /// Built once and reused, never rebuilt.
+  /// Built once each and reused, never rebuilt.
   ///
-  /// This is the whole reason the widget is held in a field: MapScreen's state
-  /// holds the tile cache, the position stream subscription and the current
-  /// route. Recreating the widget on every plugin switch would tear all of
-  /// that down and re-acquire a GPS fix each time the driver glanced at the
-  /// music screen and back.
-  static const Widget _map = MapScreen(onOpenAppSettings: _openVoyagerSettings);
+  /// This is the whole reason each widget is held in a field: both screens'
+  /// state hold a tile cache, the position stream subscription and the
+  /// current route. Recreating either on every plugin switch would tear all
+  /// of that down and re-acquire a GPS fix each time the driver glanced at
+  /// the music screen and back. Two instances, not one, because they are two
+  /// independent engines rather than one screen with a flag — switching
+  /// between them is rare enough (a Settings toggle, not a per-drive choice)
+  /// that paying for both to exist costs far less than it would to rebuild
+  /// one of them from scratch every time the driver switches back.
+  static const Widget _mapOsm =
+      MapScreen(onOpenAppSettings: _openVoyagerSettings);
+  static const Widget _mapMaplibre =
+      MaplibreMapScreen(onOpenAppSettings: _openVoyagerSettings);
 
   // Final for now: Roadstr exposes no route-state stream, so Voyager cannot
   // observe guidance transitions yet and this never changes. It becomes
@@ -100,7 +111,21 @@ class RoadstrPlugin extends BasePlugin {
     // sunset switch, and deciding on the user's behalf that they may not have
     // them was overreach. The picker lives in Voyager's settings.
     final theme = context.watch<ThemeProvider>();
-    return Theme(data: theme.effectiveThemeData, child: _map);
+    // Mirrors Roadstr's own root-level switch in its main.dart, which
+    // Voyager never runs — Voyager mounts MapScreen directly instead of
+    // going through Roadstr's own app shell, so nothing was ever reading
+    // this setting on Voyager's side until now.
+    return Theme(
+      data: theme.effectiveThemeData,
+      child: ValueListenableBuilder<Box>(
+        valueListenable: SettingsListenable.forKeys(const ['mapEngine']),
+        builder: (context, settings, _) =>
+            (settings.get('mapEngine', defaultValue: 'osm') as String) ==
+                    'maplibre'
+                ? _mapMaplibre
+                : _mapOsm,
+      ),
+    );
   }
 
   @override
