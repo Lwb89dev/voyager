@@ -1,6 +1,6 @@
---- a/lib/screens/map_screen.dart	2026-08-27 07:57:57.492307322 +0200
-+++ b/lib/screens/map_screen.dart	2026-08-31 14:06:21.294877726 +0200
-@@ -93,7 +93,17 @@
+--- a/lib/screens/map_screen.dart	2026-09-11 07:48:06.651850379 +0200
++++ b/lib/screens/map_screen.dart	2026-09-12 14:43:34.821435912 +0200
+@@ -97,7 +97,17 @@
  const double _kRouteGlowW = _kRouteStrokeW + 9;
  
  class MapScreen extends StatefulWidget {
@@ -19,7 +19,7 @@
    @override
    State<MapScreen> createState() => _MapScreenState();
  }
-@@ -203,6 +213,11 @@
+@@ -207,6 +217,11 @@
    /// Mutually exclusive with [_camTicker]/[_northTimer] (only one may drive
    /// the map controller at a time); each cancels the others on start.
    Timer? _followTicker;
@@ -31,7 +31,7 @@
    LatLng? _followTargetCenter;
    double _followTargetZoom = 17.0;
    double _followTargetRot = 0.0;
-@@ -1100,7 +1115,7 @@
+@@ -1140,7 +1155,7 @@
      // In heading-up navigation shift the camera ahead so the cursor sits at
      // ~2/5 from the bottom of the screen (more road visible ahead).
      final center = (_isNavigating && _headingMode)
@@ -40,7 +40,7 @@
          : anchor;
      final rot = _headingMode ? -_heading : _camRotDeg;
  
-@@ -1126,14 +1141,21 @@
+@@ -1166,14 +1181,21 @@
    /// Shifts the camera center [heading]° ahead of [gps] by an amount that
    /// places the GPS marker at ~1/3 from the bottom of the screen (more road
    /// ahead, less behind). Only applied in heading-up navigation mode.
@@ -67,29 +67,7 @@
      const degPerM = 1.0 / 111320.0;
      final rad = heading * math.pi / 180.0;
      final dlat = math.cos(rad) * shiftM * degPerM;
-@@ -2465,7 +2487,9 @@
-   }
- 
-   Future<void> _requestAlternatives(LatLng destination,
--      {String? label, LatLng? fromPosition, List<LatLng> via = const []}) async {
-+      {String? label,
-+      LatLng? fromPosition,
-+      List<LatLng> via = const []}) async {
-     final requestGeneration = ++_routeRequestGeneration;
-     // Block navigation when GPS hasn't acquired a real fix yet.
-     // Using the Italy fallback (42.5, 12.5) as origin would produce a useless
-@@ -2796,8 +2820,8 @@
-   /// bus with a driving route and no indication that it had done so.
-   Future<void> _planTransit(
-       LatLng origin, LatLng destination, int requestGeneration) async {
--    final result = await const TransitService()
--        .plan(from: origin, to: destination);
-+    final result =
-+        await const TransitService().plan(from: origin, to: destination);
-     if (!mounted || requestGeneration != _routeRequestGeneration) return;
- 
-     setState(() {
-@@ -3697,7 +3721,7 @@
+@@ -3756,7 +3778,7 @@
      // keep whatever rotation the user set so they don't lose their view.
      final rot = (_isNavigating || _headingMode) ? -_heading : _camRotDeg;
      final center = (_isNavigating && _headingMode)
@@ -98,7 +76,7 @@
          : _position;
      _animateCamera(toCenter: center, toZoom: _camZoom, toRot: rot);
    }
-@@ -4712,6 +4736,59 @@
+@@ -4771,6 +4793,59 @@
      final c = RoadstrColors.of(context);
      final topInset = MediaQuery.of(context).viewPadding.top;
      final bottomInset = MediaQuery.of(context).viewPadding.bottom;
@@ -158,7 +136,7 @@
      // Show the NEXT upcoming maneuver (what to do next), not the current step
      // that was just executed.  The distance countdown (_distToNextManeuverM) is
      // already the distance to that next step, so instruction and distance match.
-@@ -5161,12 +5238,16 @@
+@@ -5279,12 +5354,16 @@
              ),
            ),
  
@@ -177,7 +155,7 @@
                child: NavInstruction(
                    step: currentStep,
                    nextStep:
-@@ -5178,13 +5259,35 @@
+@@ -5296,13 +5375,35 @@
                    stepIdx: _currentStepIdx,
                    colors: c,
                    topInset: topInset,
@@ -220,7 +198,7 @@
              ),
  
            // ── SEARCH BAR ────────────────────────────────────────────────────
-@@ -5196,25 +5299,29 @@
+@@ -5314,25 +5415,29 @@
                top: topInset + 12,
                left: 16,
                right: 16,
@@ -269,7 +247,7 @@
              ),
  
            // ── SEARCH RESULTS / NEARBY / HISTORY ────────────────────────────────
-@@ -5227,6 +5334,7 @@
+@@ -5345,6 +5450,7 @@
                // running off the bottom of the screen.
                child: ConstrainedBox(
                  constraints: BoxConstraints(
@@ -277,17 +255,7 @@
                      maxHeight: MediaQuery.of(context).size.height * 0.62),
                  child: SingleChildScrollView(
                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-@@ -5273,8 +5381,7 @@
-                     // behind it. They are two different "nothing typed yet"
-                     // panels (favourite shortcuts, recent searches) and belong
-                     // on screen together, not competing for the same slot.
--                    if (_searchController.text.isEmpty &&
--                        _history.isNotEmpty)
-+                    if (_searchController.text.isEmpty && _history.isNotEmpty)
-                       SearchHistoryList(
-                         history: _history,
-                         favorites: const [],
-@@ -5331,17 +5438,31 @@
+@@ -5474,15 +5580,30 @@
            // mode, and a street name upside down is worse than none.
            if (_isNavigating && _currentStreetName != null)
              Positioned(
@@ -300,8 +268,6 @@
 -              left: 0,
 -              right: 0,
 -              child: Center(
--                child: CurrentStreetLabel(
--                    name: _currentStreetName!, colors: c),
 +              // VOYAGER: two different homes, because the nav panel that
 +              // anchors both of them sits in two different places.
 +              //
@@ -326,11 +292,10 @@
 +                alignment: voyagerLandscape
 +                    ? Alignment.centerRight
 +                    : Alignment.centerLeft,
-+                child: CurrentStreetLabel(name: _currentStreetName!, colors: c),
+                 child: CurrentStreetLabel(name: _currentStreetName!, colors: c),
                ),
              ),
- 
-@@ -5355,15 +5476,14 @@
+@@ -5497,7 +5618,7 @@
            // be got rid of is one they stop reading.
            if (!_ztlNoticeDismissed && (_inZtl || _ztlPassingBy != null))
              Positioned(
@@ -339,16 +304,7 @@
                left: 16,
                right: 16,
                child: Dismissible(
-                 key: ValueKey(
-                     'ztl-${_inZtl ? 'in' : 'near'}-${_ztlName ?? _ztlPassingBy?.name ?? ''}'),
-                 direction: DismissDirection.horizontal,
--                onDismissed: (_) =>
--                    setState(() => _ztlNoticeDismissed = true),
-+                onDismissed: (_) => setState(() => _ztlNoticeDismissed = true),
-                 child: GestureDetector(
-                   // Vertical swipes dismiss too, without a Dismissible of
-                   // their own: nesting two would leave neither able to claim
-@@ -5384,21 +5504,37 @@
+@@ -5525,12 +5646,7 @@
                ),
              ),
  
@@ -362,8 +318,9 @@
            if (!_showSearch &&
                !_showAlternatives &&
                !_isNavigating &&
-               !_showPreview &&
-               !_showPlanner)
+@@ -5538,9 +5654,30 @@
+               !_showPlanner &&
+               !showHomeDashboard)
              Positioned(
 -              left: 12,
 -              bottom: 88 + bottomInset + 12,
@@ -394,9 +351,9 @@
                  MapFab(
                      onTap: _openPlanner,
                      colors: c,
-@@ -5476,8 +5612,14 @@
-           // ── RIGHT FABs ────────────────────────────────────────────────────────
-           if (!_showSearch && !_showAlternatives && !_showPreview)
+@@ -5621,8 +5758,14 @@
+               !_showPreview &&
+               !showHomeDashboard)
              Positioned(
 -              right: 12,
 -              bottom: (_isNavigating ? 160 : 88) + bottomInset + 12,
@@ -411,7 +368,7 @@
                child: Column(mainAxisSize: MainAxisSize.min, children: [
                  CompassFab(
                    rotDeg: _camRotDeg,
-@@ -5507,22 +5649,16 @@
+@@ -5652,21 +5795,16 @@
                                : c.onAccent.withValues(alpha: 0.38),
                            size: 22),
                  ),
@@ -433,9 +390,8 @@
 -                      child: Icon(Icons.report_problem_outlined,
 -                          color: c.onAccent, size: 22)),
 -                  if (_altitudeM != null &&
--                      (Hive.box('settings')
--                          .get('showAltitude', defaultValue: false)
--                          as bool)) ...[
+-                      (Hive.box('settings').get('showAltitude',
+-                          defaultValue: false) as bool)) ...[
 -                    const SizedBox(height: 8),
 -                    AltitudeBadge(altitudeM: _altitudeM!, colors: c),
 -                  ],
@@ -443,7 +399,7 @@
                  ],
                  if (_isNavigating) ...[
                    const SizedBox(height: 8),
-@@ -5536,6 +5672,12 @@
+@@ -5680,6 +5818,12 @@
                        colors: c,
                        child: Icon(Icons.add_location_alt_outlined,
                            color: c.onAccent, size: 22)),
@@ -456,7 +412,7 @@
                  ],
                ]),
              ),
-@@ -5543,7 +5685,7 @@
+@@ -5687,7 +5831,7 @@
            // ── ARRIVAL BANNER ───────────────────────────────────────────────────
            if (_showArrivalBanner)
              Positioned(
@@ -465,7 +421,7 @@
                left: 24,
                right: 24,
                child: Material(
-@@ -5581,8 +5723,14 @@
+@@ -5725,8 +5869,14 @@
            // user is looking at, and it floated on top of the preview card.
            if (_currentSpeedLimit != null && _showsSpeedLimitSign)
              Positioned(
@@ -482,7 +438,7 @@
                child: SpeedLimitSign(_currentSpeedLimit!),
              ),
  
-@@ -5595,7 +5743,11 @@
+@@ -5739,7 +5889,11 @@
                  ? NavPanel(
                      route: _route!,
                      speed: _speed,
@@ -495,7 +451,7 @@
                      colors: c,
                      onStop: _showExitNavigationDialog,
                      remainingDistM: _remainingDistM,
-@@ -5612,7 +5764,7 @@
+@@ -5756,7 +5910,7 @@
                          wikiQuery: _placeWikiQuery,
                          openingHours: _placeOpeningHours,
                          loading: _placeLoading,
@@ -504,7 +460,7 @@
                          colors: c,
                          onNavigate: () {
                            // Capture values BEFORE _closePlaceInfo() nulls them out.
-@@ -5632,7 +5784,7 @@
+@@ -5776,7 +5930,7 @@
                              label: _pendingLabel,
                              trafficEvents: _routeTrafficEvents(_previewRoute!),
                              trafficStatus: _trafficStatus(_previewRoute!),
@@ -513,7 +469,7 @@
                              colors: c,
                              transportMode: _transportMode,
                              onStart: _confirmPreview,
-@@ -5644,7 +5796,7 @@
+@@ -5788,7 +5942,7 @@
                                  itineraries: _transitItineraries,
                                  selected: _selectedTransit,
                                  colors: c,
@@ -522,52 +478,20 @@
                                  label: _pendingLabel,
                                  failed: _transitFailed,
                                  onSelect: (i) {
-@@ -5657,31 +5809,39 @@
-                                 onModeChanged: _recalculateForMode,
-                               )
-                             : _showAlternatives
--                            ? RouteAlternativesPanel(
--                                alternatives: _alternatives,
--                                selected: _selectedAlt,
--                                bottomInset: bottomInset,
--                                colors: c,
--                                transportMode: _transportMode,
--                                destination: _destination!,
--                                avoidanceEnabled: _avoidanceEnabled,
--                                avoidanceLoading: _avoidanceLoading,
--                                onSelect: (i) =>
--                                    setState(() => _selectedAlt = i),
--                                onConfirm: _startNavigation,
--                                onCancel: _cancelAlternatives,
--                                onModeChanged: _recalculateForMode,
--                                onAvoidanceChanged: _toggleAvoidanceRoute,
--                              )
--                            : MapBottomBar(
--                                bottomInset: bottomInset,
--                                colors: c,
--                                pubkey: _myPubkey,
--                                profilePicture: _profilePicture,
--                                hasNostrLogin: _nostrFlavor == 'amber' ||
--                                    _nostrFlavor == 'nsec',
--                                onProfileReturn: () =>
--                                    unawaited(_refreshHomeIdentity())),
-+                                ? RouteAlternativesPanel(
-+                                    alternatives: _alternatives,
-+                                    selected: _selectedAlt,
+@@ -5804,7 +5958,7 @@
+                                 ? RouteAlternativesPanel(
+                                     alternatives: _alternatives,
+                                     selected: _selectedAlt,
+-                                    bottomInset: bottomInset,
 +                                    bottomInset: voyagerPanelInset,
-+                                    colors: c,
-+                                    transportMode: _transportMode,
-+                                    destination: _destination!,
-+                                    avoidanceEnabled: _avoidanceEnabled,
-+                                    avoidanceLoading: _avoidanceLoading,
-+                                    onSelect: (i) =>
-+                                        setState(() => _selectedAlt = i),
-+                                    onConfirm: _startNavigation,
-+                                    onCancel: _cancelAlternatives,
-+                                    onModeChanged: _recalculateForMode,
-+                                    onAvoidanceChanged: _toggleAvoidanceRoute,
-+                                  )
-+                                : MapBottomBar(
+                                     colors: c,
+                                     transportMode: _transportMode,
+                                     destination: _destination!,
+@@ -5818,14 +5972,22 @@
+                                     onAvoidanceChanged: _toggleAvoidanceRoute,
+                                   )
+                                 : MapBottomBar(
+-                                    bottomInset: bottomInset,
 +                                    // VOYAGER: shares Voyager's own row in
 +                                    // landscape, where the chrome pill leaves the
 +                                    // bottom-left corner clear at its own height;
@@ -576,25 +500,15 @@
 +                                    // same height would sit directly behind it —
 +                                    // see [voyagerSideInset].
 +                                    bottomInset: voyagerSideInset,
-+                                    colors: c,
-+                                    pubkey: _myPubkey,
-+                                    profilePicture: _profilePicture,
-+                                    hasNostrLogin: _nostrFlavor == 'amber' ||
-+                                        _nostrFlavor == 'nsec',
-+                                    onProfileReturn: () =>
+                                     colors: c,
+                                     pubkey: _myPubkey,
+                                     profilePicture: _profilePicture,
+                                     hasNostrLogin: _nostrFlavor == 'amber' ||
+                                         _nostrFlavor == 'nsec',
+                                     onProfileReturn: () =>
+-                                        unawaited(_refreshHomeIdentity())),
 +                                        unawaited(_refreshHomeIdentity()),
 +                                    onMenuTap: widget.onOpenAppSettings),
            ),
  
            // ── ROUTE CALCULATION OVERLAY ────────────────────────────────────────
-@@ -5750,8 +5910,8 @@
-   /// waiting for the next GPS fix or the next trip.
-   void _applyScreenPolicy() {
-     final box = Hive.box('settings');
--    final navWantsAwake = _isNavigating &&
--        (box.get('keepScreenOn', defaultValue: true) as bool);
-+    final navWantsAwake =
-+        _isNavigating && (box.get('keepScreenOn', defaultValue: true) as bool);
-     final alwaysAwake =
-         box.get('keepScreenOnAlways', defaultValue: false) as bool;
-     if (navWantsAwake || alwaysAwake) {

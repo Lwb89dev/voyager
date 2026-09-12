@@ -1,14 +1,6 @@
---- a/lib/widgets/nav/nav_hud.dart	2026-09-06 10:10:40.117620225 +0200
-+++ b/lib/widgets/nav/nav_hud.dart	2026-09-09 17:23:42.815733129 +0200
-@@ -8,7 +8,6 @@
- import '../../l10n/app_localizations.dart';
- import '../../services/routing_service.dart';
- import '../../theme/app_theme.dart';
--import '../map/map_chrome.dart';
- import '../../utils/units.dart';
- import '../speedometer_widget.dart';
- import 'maneuver_symbol.dart';
-@@ -38,29 +37,33 @@
+--- a/lib/widgets/nav/nav_hud.dart	2026-09-11 07:48:06.654998739 +0200
++++ b/lib/widgets/nav/nav_hud.dart	2026-09-12 14:53:37.695310715 +0200
+@@ -39,29 +39,33 @@
      this.distToNextStepM = 0,
      this.topInset = 0,
      this.distToNextM = 0,
@@ -60,27 +52,112 @@
      // For long straight sections (highway, state road, etc.) display the live
      // remaining distance more prominently so the driver knows how far to go.
      final liveDist = distToNextM > 0 ? distToNextM : step.distanceM;
-@@ -84,8 +87,14 @@
-         // Half the status-bar inset, plus enough to clear the clock and
-         // battery icons that sit in it. Only the panel's rounded top edge
-         // reaches into that band; its text starts below them.
+@@ -75,150 +79,75 @@
+     // The outer Column has NO background — only the instruction Container has it.
+     // This prevents the surface2 colour from spilling into the transparent area
+     // beside the compact chip (which caused the "white box" artefact).
+-    return Column(mainAxisSize: MainAxisSize.min, children: [
+-      // ── Main instruction panel ─────────────────────────────────────────────
+-      RoadstrGlassSurface(
+-        colors: colors,
+-        // Inset from the screen edges and rounded at the bottom: the panel
+-        // becomes an object resting over the map rather than a bar welded to
+-        // the top of it, and the sliver of map now visible down each side is
+-        // what sells the depth.
+-        // Half the status-bar inset, plus enough to clear the clock and
+-        // battery icons that sit in it. Only the panel's rounded top edge
+-        // reaches into that band; its text starts below them.
 -        margin: EdgeInsets.fromLTRB(10, topInset * 0.5 + 10, 10, 0),
 -        padding: EdgeInsets.fromLTRB(18, vPad * 0.6, 18, vPad),
-+        // VOYAGER: kept to a readable width in landscape rather than spanning
-+        // 2400 px of windscreen.
-+        constraints: land ? const BoxConstraints(maxWidth: 400) : null,
-+        margin:
-+            EdgeInsets.fromLTRB(10, topInset * 0.5 + (land ? 4 : 10), 10, 0),
-+        padding: land
-+            ? const EdgeInsets.fromLTRB(12, 8, 14, 8)
-+            : EdgeInsets.fromLTRB(18, vPad * 0.6, 18, vPad),
-         decoration: BoxDecoration(
-           // The gradient is the "modern" themes' whole point, and the driving
-           // panels are where it earns its place. Null on every other theme,
-@@ -137,107 +146,12 @@
-               ])),
-         ]),
-       ),
+-        level: RoadstrGlassLevel.strong,
+-        borderRadius: BorderRadius.circular(RoadstrRadius.large),
+-        child: Row(children: [
+-          _stepIcon(step, boxSz, colors),
+-          const SizedBox(width: 12),
+-          Expanded(
+-              child: Column(
+-                  crossAxisAlignment: CrossAxisAlignment.start,
+-                  mainAxisSize: MainAxisSize.min,
+-                  children: [
+-                Text(_displayInstruction(step, l),
+-                    style: TextStyle(
+-                        color: colors.mapTextPrimary,
+-                        fontSize: fsMain,
+-                        fontWeight: FontWeight.w700,
+-                        height: 1.15,
+-                        // Large type set at default tracking looks loose; a
+-                        // slight negative pull tightens the phrase into one
+-                        // shape the eye takes in at a glance.
+-                        letterSpacing: -0.4),
+-                    maxLines: land ? 1 : 3,
+-                    overflow: TextOverflow.ellipsis),
+-                SizedBox(height: land ? 4 : 7),
+-                // Long straight road: show live distance prominently (large, accent).
+-                // Short manoeuvre: standard secondary distance label.
+-                if (isLongStraight)
+-                  Row(children: [
+-                    Icon(Icons.straight_rounded,
+-                        color: colors.accent, size: fsSub),
+-                    const SizedBox(width: 4),
+-                    Text(_distLabel(liveDist, l.now),
+-                        style: TextStyle(
+-                            color: colors.accent,
+-                            fontSize: fsSub,
+-                            fontWeight: FontWeight.w700)),
+-                  ])
+-                else
++    // VOYAGER: kept to a readable width in landscape rather than spanning
++    // 2400 px of windscreen. RoadstrGlassSurface has no constraints param of
++    // its own, so the cap wraps it instead.
++    final panel = RoadstrGlassSurface(
++      colors: colors,
++      // Inset from the screen edges and rounded at the bottom: the panel
++      // becomes an object resting over the map rather than a bar welded to
++      // the top of it, and the sliver of map now visible down each side is
++      // what sells the depth.
++      // Half the status-bar inset, plus enough to clear the clock and
++      // battery icons that sit in it. Only the panel's rounded top edge
++      // reaches into that band; its text starts below them.
++      margin: EdgeInsets.fromLTRB(10, topInset * 0.5 + (land ? 4 : 10), 10, 0),
++      padding: land
++          ? const EdgeInsets.fromLTRB(12, 8, 14, 8)
++          : EdgeInsets.fromLTRB(18, vPad * 0.6, 18, vPad),
++      level: RoadstrGlassLevel.strong,
++      borderRadius: BorderRadius.circular(RoadstrRadius.large),
++      child: Row(children: [
++        _stepIcon(step, boxSz, colors),
++        const SizedBox(width: 12),
++        Expanded(
++            child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                mainAxisSize: MainAxisSize.min,
++                children: [
++              Text(_displayInstruction(step, l),
++                  style: TextStyle(
++                      color: colors.mapTextPrimary,
++                      fontSize: fsMain,
++                      fontWeight: FontWeight.w700,
++                      height: 1.15,
++                      // Large type set at default tracking looks loose; a
++                      // slight negative pull tightens the phrase into one
++                      // shape the eye takes in at a glance.
++                      letterSpacing: -0.4),
++                  maxLines: land ? 1 : 3,
++                  overflow: TextOverflow.ellipsis),
++              SizedBox(height: land ? 4 : 7),
++              // Long straight road: show live distance prominently (large, accent).
++              // Short manoeuvre: standard secondary distance label.
++              if (isLongStraight)
++                Row(children: [
++                  Icon(Icons.straight_rounded,
++                      color: colors.accent, size: fsSub),
++                  const SizedBox(width: 4),
+                   Text(_distLabel(liveDist, l.now),
+                       style: TextStyle(
+-                          color: colors.mapTextSecondary, fontSize: fsSub)),
+-              ])),
+-        ]),
+-      ),
 -      // ── Next-step preview tile (left-anchored, own background) ─────────────
 -      // Fixed width = exactly half the panel above (which is edge-to-edge,
 -      // i.e. half the screen width) so the tile never grows with long text —
@@ -102,67 +179,54 @@
 -          crossAxisAlignment: CrossAxisAlignment.start,
 -          children: [
 -            if (showNext)
--              Container(
--                margin: const EdgeInsets.only(left: 10),
--            // 15% narrower than the half-screen tile this used to be, so it
--            // covers less map. Type and padding come down with it rather than
--            // the text being clipped: the same words still fit in the same
--            // number of lines, just set slightly smaller.
--            width: MediaQuery.of(context).size.width * 0.425,
--            padding: EdgeInsets.symmetric(
--                horizontal: land ? 13 : 20, vertical: land ? 12 : 18),
--            decoration: BoxDecoration(
--              gradient: colors.panelGradient,
--              color: colors.panelGradient == null ? colors.surface3 : null,
--              // Rounded on every corner now that it floats clear of the panel
--              // above, and a step smaller in radius, edge and shadow than the
--              // main panel — subordinate by weight rather than only by size.
--              borderRadius: BorderRadius.circular(16),
--              border: Border.all(
--                  color: colors.panelEdge.withValues(alpha: 0.5), width: 1),
--              boxShadow: [
--                BoxShadow(
--                    color: Colors.black.withValues(alpha: 0.12),
--                    blurRadius: 16,
--                    spreadRadius: -3,
--                    offset: const Offset(0, 4))
--              ],
--            ),
--            child: Row(children: [
--              ManeuverSymbol(
--                step: nextStep!,
--                size: land ? 26 : 36,
+-              RoadstrGlassSurface(
 -                colors: colors,
--                showBackground: false,
+-                margin: const EdgeInsets.only(left: 10),
+-                // 15% narrower than the half-screen tile this used to be, so it
+-                // covers less map. Type and padding come down with it rather than
+-                // the text being clipped: the same words still fit in the same
+-                // number of lines, just set slightly smaller.
+-                width: MediaQuery.of(context).size.width * 0.425,
+-                padding: EdgeInsets.symmetric(
+-                    horizontal: land ? 13 : 20, vertical: land ? 12 : 18),
+-                level: RoadstrGlassLevel.medium,
+-                borderRadius: BorderRadius.circular(RoadstrRadius.medium),
+-                child: Row(children: [
+-                  ManeuverSymbol(
+-                    step: nextStep!,
+-                    size: land ? 26 : 36,
+-                    colors: colors,
+-                    showBackground: false,
+-                  ),
+-                  const SizedBox(width: 10),
+-                  // Expanded (not Flexible) so the text takes the whole remaining
+-                  // width of the fixed tile and wraps there, instead of letting the
+-                  // Row grow to fit long instructions.
+-                  Expanded(
+-                      child: Column(
+-                    crossAxisAlignment: CrossAxisAlignment.start,
+-                    mainAxisSize: MainAxisSize.min,
+-                    children: [
+-                      // "then …" makes it unmistakable that this is the manoeuvre
+-                      // AFTER the one in the main banner, not the current one.
+-                      Text(
+-                          l.thenManeuver(_uncapitalised(nextStep!.instruction)),
+-                          style: TextStyle(
+-                              color: colors.mapTextPrimary,
+-                              fontSize: land ? 12 : 18,
+-                              fontWeight: FontWeight.w600),
+-                          maxLines: land ? 2 : 3,
+-                          overflow: TextOverflow.ellipsis),
+-                      const SizedBox(height: 3),
+-                      Text(_distLabel(distToNextStepM, ''),
+-                          style: TextStyle(
+-                              color: colors.mapTextSecondary,
+-                              fontSize: land ? 10 : 15,
+-                              fontWeight: FontWeight.w500)),
+-                    ],
+-                  )),
+-                ]),
 -              ),
--              const SizedBox(width: 10),
--              // Expanded (not Flexible) so the text takes the whole remaining
--              // width of the fixed tile and wraps there, instead of letting the
--              // Row grow to fit long instructions.
--              Expanded(
--                  child: Column(
--                crossAxisAlignment: CrossAxisAlignment.start,
--                mainAxisSize: MainAxisSize.min,
--                children: [
--                  // "then …" makes it unmistakable that this is the manoeuvre
--                  // AFTER the one in the main banner, not the current one.
--                  Text(l.thenManeuver(_uncapitalised(nextStep!.instruction)),
--                      style: TextStyle(
--                          color: colors.textPrimary,
--                          fontSize: land ? 12 : 18,
--                          fontWeight: FontWeight.w600),
--                      maxLines: land ? 2 : 3,
--                      overflow: TextOverflow.ellipsis),
--                  const SizedBox(height: 3),
--                  Text(_distLabel(distToNextStepM, ''),
--                      style: TextStyle(
--                          color: colors.textSecondary,
--                          fontSize: land ? 10 : 15,
--                          fontWeight: FontWeight.w500)),
--                ],
--              )),
--            ]),
--          ),
 -            const Spacer(),
 -            if (onToggleVoice != null)
 -              Padding(
@@ -174,7 +238,7 @@
 -                      voiceMuted
 -                          ? Icons.volume_off_rounded
 -                          : Icons.volume_up_rounded,
--                      color: colors.onAccent
+-                      color: colors.mapTextPrimary
 -                          .withValues(alpha: voiceMuted ? 0.45 : 1.0),
 -                      size: 22),
 -                ),
@@ -182,16 +246,31 @@
 -          ],
 -        ),
 -      ),
-+      // VOYAGER: the next-step preview tile and the voice-mute toggle that
-+      // used to share this row are both gone from here. `showNext` is always
-+      // false (land is always true), so the tile never rendered in Voyager
-+      // to begin with; the toggle is now docked independently in
-+      // map_screen.dart, top-right, rather than trailing whatever width this
-+      // card happened to have.
++                          color: colors.accent,
++                          fontSize: fsSub,
++                          fontWeight: FontWeight.w700)),
++                ])
++              else
++                Text(_distLabel(liveDist, l.now),
++                    style: TextStyle(
++                        color: colors.mapTextSecondary, fontSize: fsSub)),
++            ])),
++      ]),
++    );
++    // VOYAGER: the next-step preview tile and the voice-mute toggle that used
++    // to share this row are both gone from here regardless of `showNext` —
++    // the toggle is now docked independently in map_screen.dart, top-right,
++    // rather than trailing whatever width this card happened to have.
++    return Column(mainAxisSize: MainAxisSize.min, children: [
++      // ── Main instruction panel ─────────────────────────────────────────────
++      land
++          ? ConstrainedBox(
++              constraints: const BoxConstraints(maxWidth: 400), child: panel)
++          : panel,
      ]);
    }
  
-@@ -273,15 +187,19 @@
+@@ -254,15 +183,19 @@
  }
  
  /// Height of the stop-navigation button.
@@ -218,7 +297,7 @@
  ///
  /// The curve is front-loaded on purpose. A straight ramp puts a 50% pink
  /// through the middle of the button, and pink — not white — becomes the
-@@ -289,9 +207,9 @@
+@@ -270,9 +203,9 @@
  /// to near-white while keeping the transition free of any visible step.
  const List<(double, double)> _stopBtnRamp = [
    (0.0, 0.72), // already mostly white at the top edge — no red cap at all
@@ -231,10 +310,11 @@
    (_stopBtnH, 1.00),
  ];
  
-@@ -365,11 +283,48 @@
-         '${arr.minute.toString().padLeft(2, '0')}';
+@@ -347,10 +280,44 @@
    }
  
+   @override
++
 +  /// VOYAGER: the landscape form — a card the size of its contents, parked in
 +  /// the bottom-left corner, instead of a band across the screen.
 +  ///
@@ -250,15 +330,10 @@
 +          padding: EdgeInsets.only(left: 10, bottom: vBot, right: 10),
 +          child: ConstrainedBox(
 +            constraints: const BoxConstraints(maxWidth: 300),
-+            child: Container(
-+              decoration: BoxDecoration(
-+                gradient: colors.panelGradient,
-+                color: colors.panelGradient == null ? colors.surface2 : null,
-+                // Rounded on every side: it no longer meets an edge.
-+                borderRadius: BorderRadius.circular(RoadstrColors.panelRadius),
-+                border: Border.all(color: colors.panelEdge, width: 1),
-+                boxShadow: colors.panelShadow,
-+              ),
++            child: RoadstrGlassSurface(
++              colors: colors,
++              level: RoadstrGlassLevel.strong,
++              borderRadius: BorderRadius.circular(RoadstrRadius.large),
 +              padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
 +              child: _content(context, speedoSz, fsDist, fsSub, true, l),
 +            ),
@@ -266,11 +341,11 @@
 +        ),
 +      );
 +
-   @override
++  @override
    Widget build(BuildContext context) {
      final l = AppLocalizations.of(context);
 -    final land = MediaQuery.of(context).orientation == Orientation.landscape;
--    final speedoSz = land ? 70.0 : 110.0;
+-    final speedoSz = land ? 66.0 : 88.0;
 +    // VOYAGER: see the note on the same line in NavInstruction above — this
 +    // card is always the compact floating form now, in both orientations.
 +    const land = true;
@@ -278,24 +353,24 @@
 +    // (land is always true), and 54 read as small next to the rest of
 +    // Voyager's touch-and-glance targets. Big enough to read the number at a
 +    // glance without the card outgrowing the corner it sits in.
-+    final speedoSz = land ? 68.0 : 110.0;
++    final speedoSz = land ? 68.0 : 88.0;
      // Bumped for at-a-glance legibility while driving. The row height is
      // governed by the speedometer (70/110 px), so larger type does not grow
      // the bar — the text column still fits well within that height.
-@@ -379,12 +334,23 @@
+@@ -360,12 +327,23 @@
      // toward the portrait sizes; the row still has vertical room since it
      // is the speedometer (70px in landscape) that governs the height, not
      // this text.
--    final fsDist = land ? 28.0 : 34.0;
--    final fsSub = land ? 17.5 : 19.0;
+-    final fsDist = land ? 26.0 : 30.0;
+-    final fsSub = land ? 15.0 : 16.0;
 -    final vTop = land ? 6.0 : 14.0;
 +    //
-+    // VOYAGER: kept smaller than upstream's own landscape bump above (28.0)
-+    // — the corner card is compact by design, not a full-width bar read at
-+    // highway distance, and 20.0 already reads fine at the range this sits
-+    // from the driver's eye in a dash mount.
-+    final fsDist = land ? 20.0 : 34.0;
-+    final fsSub = land ? 13.0 : 19.0;
++    // VOYAGER: kept smaller than upstream's own landscape sizing above — the
++    // corner card is compact by design, not a full-width bar read at highway
++    // distance, and these already read fine at the range this sits from the
++    // driver's eye in a dash mount.
++    final fsDist = land ? 20.0 : 30.0;
++    final fsSub = land ? 13.0 : 16.0;
 +    final vTop = land ? 4.0 : 14.0;
 +    // VOYAGER: the inset is honoured in full. A host that inflates
 +    // viewPadding.bottom by the height of its own chrome is telling this panel
@@ -306,17 +381,88 @@
          ? (bottomInset > 0 ? bottomInset + 4 : 8.0)
          : (bottomInset > 0 ? bottomInset : 16.0);
 +    if (land) return _floating(context, speedoSz, fsDist, fsSub, vBot, l);
-     return Container(
-       decoration: BoxDecoration(
-         gradient: colors.panelGradient,
-@@ -400,18 +366,30 @@
-         boxShadow: colors.panelShadow,
+     return RoadstrGlassSurface(
+       colors: colors,
+       level: RoadstrGlassLevel.strong,
+@@ -374,78 +352,82 @@
+         top: Radius.circular(RoadstrRadius.xLarge),
        ),
        padding: EdgeInsets.only(left: 18, right: 14, top: vTop, bottom: vBot),
--      child: Row(children: [
+-      child: Column(mainAxisSize: MainAxisSize.min, children: [
+-        Row(children: [
+-          SpeedometerWidget(
+-              speedKmh: speed,
+-              size: speedoSz,
+-              speedLimit: speedLimit,
+-              style: speedometerStyle),
+-          const SizedBox(width: 12),
+-          Expanded(
+-              child: Column(
+-                  crossAxisAlignment: CrossAxisAlignment.start,
+-                  mainAxisSize: MainAxisSize.min,
+-                  children: [
+-                // Time to arrival leads. What a driver is deciding — whether to
+-                // stop, whether they will make an appointment — depends on how
+-                // long is left, not on how many kilometres remain; the distance
+-                // is the supporting detail, so it takes the secondary style.
+-                Text(_timeLabel(l),
+-                    style: TextStyle(
+-                        color: colors.mapTextPrimary,
+-                        fontSize: fsDist,
+-                        fontWeight: FontWeight.w800,
+-                        height: 1.05,
+-                        letterSpacing: -0.8)),
+-                SizedBox(height: land ? 1 : 3),
+-                Row(children: [
+-                  // Remaining distance — updates every GPS tick
+-                  Text(_distLabel,
+-                      style: TextStyle(
+-                          color: colors.mapTextSecondary,
+-                          fontSize: fsSub,
+-                          fontWeight: FontWeight.w600)),
+-                  // ETA used to be hidden in landscape to save vertical
+-                  // space, but a field report specifically about landscape
+-                  // (a dash mount, the common way to actually drive with
+-                  // this) asked for it — landscape has the width to spare
+-                  // even where it doesn't have the height.
+-                  Text('  ·  ',
+-                      style: TextStyle(
+-                          color: colors.mapTextSecondary, fontSize: fsSub)),
+-                  // Estimated time of arrival
+-                  Text(l.etaArrivalLabel(_etaLabel),
+-                      style: TextStyle(
+-                          color: colors.mapTextSecondary,
+-                          fontSize: fsSub,
+-                          fontWeight: FontWeight.w600)),
+-                ]),
+-              ])),
+-          // Stop navigation
+-          GestureDetector(
+-            onTap: onStop,
+-            child: Container(
+-                // Upright: narrow at the base and tall, so it reads as a
+-                // distinct control rather than as another wide info tile
+-                // competing with the figures beside it.
+-                width: 46,
+-                height: _stopBtnH,
+-                alignment: Alignment.center,
+-                decoration: BoxDecoration(
+-                  gradient: _stopBtnGradientFor(true),
+-                  borderRadius: BorderRadius.circular(14),
+-                  border:
+-                      Border.all(color: _stopBtnRed.withValues(alpha: 0.45)),
+-                ),
+-                child: Icon(Icons.close_rounded,
+-                    // Brighter red on the dark body, where the deeper shade
+-                    // used on white would disappear.
+-                    color: const Color(0xFFFF6B6B),
+-                    size: 26)),
+-          ),
+-        ]),
+-      ]),
 +      child: _content(context, speedoSz, fsDist, fsSub, land, l),
-+    );
-+  }
+     );
+   }
 +
 +  /// The panel's contents, shared by both layouts so the landscape card
 +  /// cannot drift into showing something different from the portrait bar.
@@ -328,61 +474,68 @@
 +      // the figures and the stop button. Sized to its own content, the card
 +      // is now only ever as wide as it needs to be.
 +      Row(mainAxisSize: MainAxisSize.min, children: [
-         SpeedometerWidget(
-             speedKmh: speed,
-             size: speedoSz,
-             speedLimit: speedLimit,
-             style: speedometerStyle),
--        const SizedBox(width: 12),
--        Expanded(
--            child: Column(
--                crossAxisAlignment: CrossAxisAlignment.start,
--                mainAxisSize: MainAxisSize.min,
--                children: [
++        SpeedometerWidget(
++            speedKmh: speed,
++            size: speedoSz,
++            speedLimit: speedLimit,
++            style: speedometerStyle),
 +        const SizedBox(width: 8),
 +        Column(
 +            crossAxisAlignment: CrossAxisAlignment.start,
 +            mainAxisSize: MainAxisSize.min,
 +            children: [
-               // Time to arrival leads. What a driver is deciding — whether to
-               // stop, whether they will make an appointment — depends on how
-               // long is left, not on how many kilometres remain; the distance
-@@ -446,7 +424,7 @@
-                         fontSize: fsSub,
-                         fontWeight: FontWeight.w600)),
-               ]),
--            ])),
++              // Time to arrival leads. What a driver is deciding — whether to
++              // stop, whether they will make an appointment — depends on how
++              // long is left, not on how many kilometres remain; the distance
++              // is the supporting detail, so it takes the secondary style.
++              Text(_timeLabel(l),
++                  style: TextStyle(
++                      color: colors.mapTextPrimary,
++                      fontSize: fsDist,
++                      fontWeight: FontWeight.w800,
++                      height: 1.05,
++                      letterSpacing: -0.8)),
++              SizedBox(height: land ? 1 : 3),
++              Row(children: [
++                // Remaining distance — updates every GPS tick
++                Text(_distLabel,
++                    style: TextStyle(
++                        color: colors.mapTextSecondary,
++                        fontSize: fsSub,
++                        fontWeight: FontWeight.w600)),
++                // ETA used to be hidden in landscape to save vertical
++                // space, but a field report specifically about landscape
++                // (a dash mount, the common way to actually drive with
++                // this) asked for it — landscape has the width to spare
++                // even where it doesn't have the height.
++                Text('  ·  ',
++                    style: TextStyle(
++                        color: colors.mapTextSecondary, fontSize: fsSub)),
++                // Estimated time of arrival
++                Text(l.etaArrivalLabel(_etaLabel),
++                    style: TextStyle(
++                        color: colors.mapTextSecondary,
++                        fontSize: fsSub,
++                        fontWeight: FontWeight.w600)),
++              ]),
 +            ]),
-         // Stop navigation
-         GestureDetector(
-           onTap: onStop,
-@@ -454,14 +432,13 @@
-               // Upright: narrow at the base and tall, so it reads as a
-               // distinct control rather than as another wide info tile
-               // competing with the figures beside it.
--              width: 46,
++        // Stop navigation
++        GestureDetector(
++          onTap: onStop,
++          child: Container(
++              // Upright: narrow at the base and tall, so it reads as a
++              // distinct control rather than as another wide info tile
++              // competing with the figures beside it.
 +              width: 23,
-               height: _stopBtnH,
-               alignment: Alignment.center,
-               decoration: BoxDecoration(
-                 gradient: _stopBtnGradientFor(colors.isDark),
--                borderRadius: BorderRadius.circular(14),
--                border: Border.all(
--                    color: _stopBtnRed.withValues(alpha: 0.45)),
++              height: _stopBtnH,
++              alignment: Alignment.center,
++              decoration: BoxDecoration(
++                gradient: _stopBtnGradientFor(true),
 +                borderRadius: BorderRadius.circular(9),
 +                border: Border.all(color: _stopBtnRed.withValues(alpha: 0.45)),
-               ),
-               child: Icon(Icons.close_rounded,
-                   // Brighter red on the dark body, where the deeper shade
-@@ -469,9 +446,7 @@
-                   color: colors.isDark
-                       ? const Color(0xFFFF6B6B)
-                       : const Color(0xFFD32F2F),
--                  size: 26)),
-+                  size: 14)),
-         ),
--      ]),
--    );
--  }
++              ),
++              child: Icon(Icons.close_rounded,
++                  color: const Color(0xFFFF6B6B), size: 14)),
++        ),
 +      ]);
  }

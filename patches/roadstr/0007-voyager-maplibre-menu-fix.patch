@@ -1,6 +1,6 @@
---- a/lib/screens/maplibre_map_screen.dart	2026-09-07 21:01:15.135783861 +0200
-+++ b/lib/screens/maplibre_map_screen.dart	2026-09-09 17:26:50.744235489 +0200
-@@ -248,7 +248,12 @@
+--- a/lib/screens/maplibre_map_screen.dart	2026-09-11 07:48:06.653078318 +0200
++++ b/lib/screens/maplibre_map_screen.dart	2026-09-12 14:54:55.489445293 +0200
+@@ -250,7 +250,12 @@
  }
  
  class MaplibreMapScreen extends StatefulWidget {
@@ -14,7 +14,7 @@
  
    @override
    State<MaplibreMapScreen> createState() => _MaplibreMapScreenState();
-@@ -4528,6 +4533,10 @@
+@@ -4556,6 +4561,10 @@
                  final step = steps[nextIdx];
                  final nextStep =
                      nextIdx + 1 < steps.length ? steps[nextIdx + 1] : null;
@@ -25,7 +25,7 @@
                  return NavInstruction(
                    step: step,
                    nextStep: nextStep,
-@@ -4537,17 +4546,33 @@
+@@ -4565,17 +4574,33 @@
                    colors: c,
                    topInset: MediaQuery.of(context).padding.top,
                    distToNextM: _distToNextStepM,
@@ -67,7 +67,7 @@
            // ── PLACE INFO (search result / map tap, before committing) ────────
            // Same widget MapScreen shows first — "where is this, what's
            // here" — before the driver commits to routing anywhere.
-@@ -4816,10 +4841,23 @@
+@@ -4870,10 +4895,23 @@
            // MapScreen: re-planning and checking a saved spot are both
            // pre-trip actions, reporting is not (it stays on the right, in
            // both states).
@@ -81,7 +81,7 @@
 +          // display cutout, which in landscape sits on this same long edge.
 +          // 70, not 40: at 40 the column's bottom edge still undershot
 +          // MapBottomBar's top by 16dp in landscape, confirmed on-device.
-           if (showingBottomBar)
+           if (showingBottomBar && !showHomeDashboard)
              Positioned(
 -              left: 12,
 -              bottom: MediaQuery.of(context).padding.bottom + 16,
@@ -93,7 +93,7 @@
                child: Column(mainAxisSize: MainAxisSize.min, children: [
                  MapFab(
                    onTap: _openPlanner,
-@@ -4844,19 +4882,29 @@
+@@ -4898,19 +4936,29 @@
            // ── BOTTOM BAR (notifications / profile / settings) ─────────────────
            // Same widget MapScreen shows when nothing else claims the bottom —
            // idle, no search, no route.
