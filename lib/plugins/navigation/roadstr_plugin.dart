@@ -120,7 +120,7 @@ class RoadstrPlugin extends BasePlugin {
       child: ValueListenableBuilder<Box>(
         valueListenable: SettingsListenable.forKeys(const ['mapEngine']),
         builder: (context, settings, _) =>
-            (settings.get('mapEngine', defaultValue: 'osm') as String) ==
+            (settings.get('mapEngine', defaultValue: 'maplibre') as String) ==
                     'maplibre'
                 ? _mapMaplibre
                 : _mapOsm,

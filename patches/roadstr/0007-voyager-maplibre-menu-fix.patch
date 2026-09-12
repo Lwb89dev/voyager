@@ -1,5 +1,5 @@
 --- a/lib/screens/maplibre_map_screen.dart	2026-09-11 07:48:06.653078318 +0200
-+++ b/lib/screens/maplibre_map_screen.dart	2026-09-12 14:54:55.489445293 +0200
++++ b/lib/screens/maplibre_map_screen.dart	2026-09-12 15:27:33.313869482 +0200
 @@ -250,7 +250,12 @@
  }
  
@@ -14,7 +14,331 @@
  
    @override
    State<MaplibreMapScreen> createState() => _MaplibreMapScreenState();
-@@ -4556,6 +4561,10 @@
+@@ -4387,156 +4392,173 @@
+             top: MediaQuery.of(context).padding.top + 12,
+             left: 12,
+             right: 12,
+-            child:
+-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+-              // Search hidden once navigating, except while picking a mid-route
+-              // stop — same as MapScreen: adding a waypoint reuses the same
+-              // search UI a fresh destination search does.
+-              if ((!_isNavigating || _pickingWaypoint) && !_showPlanner) ...[
+-                // No back arrow here — MapScreen's home screen never had one
+-                // either: PlaceSearchBar's own clear (×) button closes search
+-                // once there's text to clear, and the system back gesture
+-                // (PopScope, below) closes it the rest of the way.
+-                PlaceSearchBar(
+-                  controller: _searchController,
+-                  colors: c,
+-                  onFocus: () => setState(() => _showSearch = true),
+-                  onChanged: _onSearchChanged,
+-                  onSubmitted: (q) => unawaited(_onSearchSubmit(q)),
+-                  onClear: () {
+-                    _searchController.clear();
+-                    FocusManager.instance.primaryFocus?.unfocus();
+-                    setState(() {
+-                      _showSearch = false;
+-                      _searchResults = [];
+-                      _nearbyCategory = null;
+-                      _pickingWaypoint = false;
+-                    });
+-                  },
+-                ),
+-                // Nothing typed yet: offer the one-tap nearby categories —
+-                // same PoiSearchService MapScreen uses, reused as-is.
+-                if (_showSearch && _searchController.text.isEmpty) ...[
+-                  const SizedBox(height: 8),
+-                  NearbyBar(
+-                    colors: c,
+-                    enabled: _lastFix != null,
+-                    selected: _nearbyCategory,
+-                    onSelect: _searchNearby,
+-                  ),
+-                ],
+-                if (_showSearch &&
+-                    (_searching ||
+-                        _searchResults.isNotEmpty ||
+-                        _nearbyCategory != null ||
+-                        _matchingFavorites(_searchController.text)
+-                            .isNotEmpty)) ...[
+-                  const SizedBox(height: 8),
+-                  SearchResultsList(
+-                    results: _searchResults,
+-                    isLoading: _searching,
+-                    favorites: _matchingFavorites(_searchController.text),
+-                    colors: c,
+-                    emptyMessage: _nearbyCategory == null
+-                        ? null
+-                        : AppLocalizations.of(context).nearbyNothingFound,
+-                    onSelect: (r) {
+-                      setState(() => _nearbyCategory = null);
+-                      _onSelectResult(r);
+-                    },
+-                    onSelectFavorite: (fav) {
+-                      _searchController.clear();
+-                      setState(() {
+-                        _showSearch = false;
+-                        _searchResults = [];
+-                        _nearbyCategory = null;
+-                      });
+-                      FocusManager.instance.primaryFocus?.unfocus();
+-                      unawaited(
+-                          _onDestinationPicked(fav.position, label: fav.label));
+-                    },
+-                  ),
+-                ],
+-                // Independent condition, not folded into the block above: with
+-                // an empty query _matchingFavorites('') returns every saved
+-                // favourite, so almost any user with one saved place would
+-                // permanently hide history behind that panel. They're two
+-                // different "nothing typed yet" panels and belong on screen
+-                // together, same as MapScreen.
+-                if (_showSearch &&
+-                    _searchController.text.isEmpty &&
+-                    _history.isNotEmpty) ...[
+-                  const SizedBox(height: 8),
+-                  SearchHistoryList(
+-                    history: _history,
+-                    favorites: const [],
+-                    colors: c,
+-                    onSelect: (item) {
+-                      _searchController.clear();
+-                      setState(() {
+-                        _showSearch = false;
+-                        _searchResults = [];
+-                        _nearbyCategory = null;
+-                      });
+-                      FocusManager.instance.primaryFocus?.unfocus();
+-                      unawaited(_onDestinationPicked(item.position,
+-                          label: item.label));
+-                    },
+-                    onSelectFavorite: (_) {},
+-                    onClear: _clearHistory,
+-                  ),
+-                ],
+-              ],
+-              if (_isRerouting || _calculatingRoute) ...[
+-                Container(
+-                  padding:
+-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+-                  decoration: BoxDecoration(
+-                    color: c.surface2.withValues(alpha: 0.92),
+-                    borderRadius: BorderRadius.circular(10),
+-                    border: Border.all(color: c.border, width: 0.5),
+-                  ),
+-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+-                    SizedBox(
+-                        width: 14,
+-                        height: 14,
+-                        child: CircularProgressIndicator(
+-                            strokeWidth: 2, color: c.accent)),
+-                    const SizedBox(width: 8),
+-                    Text(AppLocalizations.of(context).calculatingRoute,
+-                        style: TextStyle(color: c.textSecondary, fontSize: 12)),
+-                  ]),
+-                ),
+-                const SizedBox(height: 8),
+-              ],
+-              if (_showArrivalBanner) ...[
+-                Container(
+-                  padding:
+-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+-                  decoration: BoxDecoration(
+-                    color: const Color(0xFF22C55E),
+-                    borderRadius: BorderRadius.circular(14),
+-                  ),
+-                  child: Row(children: [
+-                    const Icon(Icons.flag_rounded, color: Colors.white),
+-                    const SizedBox(width: 10),
+-                    Expanded(
+-                      child: Text(AppLocalizations.of(context).arrivedTitle,
+-                          style: const TextStyle(
+-                              color: Colors.white,
+-                              fontWeight: FontWeight.w700)),
+-                    ),
+-                    IconButton(
+-                      icon: const Icon(Icons.close, color: Colors.white),
+-                      onPressed: () {
+-                        _arrivalBannerTimer?.cancel();
+-                        setState(() => _showArrivalBanner = false);
+-                      },
+-                    ),
+-                  ]),
+-                ),
+-              ],
+-            ]),
++            // VOYAGER: capped and centred in landscape rather than left edge
++            // to edge — on a ~900 dp dashboard screen the search UI otherwise
++            // reads as a band across the top of the map instead of a control.
++            // 560 is wider than a phone screen in portrait, so the cap has no
++            // visible effect there. Same figure MapScreen uses.
++            child: Center(
++              child: ConstrainedBox(
++                constraints: const BoxConstraints(maxWidth: 560),
++                child: Column(
++                    crossAxisAlignment: CrossAxisAlignment.start,
++                    children: [
++                      // Search hidden once navigating, except while picking a mid-route
++                      // stop — same as MapScreen: adding a waypoint reuses the same
++                      // search UI a fresh destination search does.
++                      if ((!_isNavigating || _pickingWaypoint) &&
++                          !_showPlanner) ...[
++                        // No back arrow here — MapScreen's home screen never had one
++                        // either: PlaceSearchBar's own clear (×) button closes search
++                        // once there's text to clear, and the system back gesture
++                        // (PopScope, below) closes it the rest of the way.
++                        PlaceSearchBar(
++                          controller: _searchController,
++                          colors: c,
++                          onFocus: () => setState(() => _showSearch = true),
++                          onChanged: _onSearchChanged,
++                          onSubmitted: (q) => unawaited(_onSearchSubmit(q)),
++                          onClear: () {
++                            _searchController.clear();
++                            FocusManager.instance.primaryFocus?.unfocus();
++                            setState(() {
++                              _showSearch = false;
++                              _searchResults = [];
++                              _nearbyCategory = null;
++                              _pickingWaypoint = false;
++                            });
++                          },
++                        ),
++                        // Nothing typed yet: offer the one-tap nearby categories —
++                        // same PoiSearchService MapScreen uses, reused as-is.
++                        if (_showSearch && _searchController.text.isEmpty) ...[
++                          const SizedBox(height: 8),
++                          NearbyBar(
++                            colors: c,
++                            enabled: _lastFix != null,
++                            selected: _nearbyCategory,
++                            onSelect: _searchNearby,
++                          ),
++                        ],
++                        if (_showSearch &&
++                            (_searching ||
++                                _searchResults.isNotEmpty ||
++                                _nearbyCategory != null ||
++                                _matchingFavorites(_searchController.text)
++                                    .isNotEmpty)) ...[
++                          const SizedBox(height: 8),
++                          SearchResultsList(
++                            results: _searchResults,
++                            isLoading: _searching,
++                            favorites:
++                                _matchingFavorites(_searchController.text),
++                            colors: c,
++                            emptyMessage: _nearbyCategory == null
++                                ? null
++                                : AppLocalizations.of(context)
++                                    .nearbyNothingFound,
++                            onSelect: (r) {
++                              setState(() => _nearbyCategory = null);
++                              _onSelectResult(r);
++                            },
++                            onSelectFavorite: (fav) {
++                              _searchController.clear();
++                              setState(() {
++                                _showSearch = false;
++                                _searchResults = [];
++                                _nearbyCategory = null;
++                              });
++                              FocusManager.instance.primaryFocus?.unfocus();
++                              unawaited(_onDestinationPicked(fav.position,
++                                  label: fav.label));
++                            },
++                          ),
++                        ],
++                        // Independent condition, not folded into the block above: with
++                        // an empty query _matchingFavorites('') returns every saved
++                        // favourite, so almost any user with one saved place would
++                        // permanently hide history behind that panel. They're two
++                        // different "nothing typed yet" panels and belong on screen
++                        // together, same as MapScreen.
++                        if (_showSearch &&
++                            _searchController.text.isEmpty &&
++                            _history.isNotEmpty) ...[
++                          const SizedBox(height: 8),
++                          SearchHistoryList(
++                            history: _history,
++                            favorites: const [],
++                            colors: c,
++                            onSelect: (item) {
++                              _searchController.clear();
++                              setState(() {
++                                _showSearch = false;
++                                _searchResults = [];
++                                _nearbyCategory = null;
++                              });
++                              FocusManager.instance.primaryFocus?.unfocus();
++                              unawaited(_onDestinationPicked(item.position,
++                                  label: item.label));
++                            },
++                            onSelectFavorite: (_) {},
++                            onClear: _clearHistory,
++                          ),
++                        ],
++                      ],
++                      if (_isRerouting || _calculatingRoute) ...[
++                        Container(
++                          padding: const EdgeInsets.symmetric(
++                              horizontal: 12, vertical: 8),
++                          decoration: BoxDecoration(
++                            color: c.surface2.withValues(alpha: 0.92),
++                            borderRadius: BorderRadius.circular(10),
++                            border: Border.all(color: c.border, width: 0.5),
++                          ),
++                          child: Row(mainAxisSize: MainAxisSize.min, children: [
++                            SizedBox(
++                                width: 14,
++                                height: 14,
++                                child: CircularProgressIndicator(
++                                    strokeWidth: 2, color: c.accent)),
++                            const SizedBox(width: 8),
++                            Text(AppLocalizations.of(context).calculatingRoute,
++                                style: TextStyle(
++                                    color: c.textSecondary, fontSize: 12)),
++                          ]),
++                        ),
++                        const SizedBox(height: 8),
++                      ],
++                      if (_showArrivalBanner) ...[
++                        Container(
++                          padding: const EdgeInsets.symmetric(
++                              horizontal: 16, vertical: 12),
++                          decoration: BoxDecoration(
++                            color: const Color(0xFF22C55E),
++                            borderRadius: BorderRadius.circular(14),
++                          ),
++                          child: Row(children: [
++                            const Icon(Icons.flag_rounded, color: Colors.white),
++                            const SizedBox(width: 10),
++                            Expanded(
++                              child: Text(
++                                  AppLocalizations.of(context).arrivedTitle,
++                                  style: const TextStyle(
++                                      color: Colors.white,
++                                      fontWeight: FontWeight.w700)),
++                            ),
++                            IconButton(
++                              icon:
++                                  const Icon(Icons.close, color: Colors.white),
++                              onPressed: () {
++                                _arrivalBannerTimer?.cancel();
++                                setState(() => _showArrivalBanner = false);
++                              },
++                            ),
++                          ]),
++                        ),
++                      ],
++                    ]),
++              ),
++            ),
+           ),
+           // ── NAV INSTRUCTION (full-width, top edge-to-edge) ─────────────────
+           // The real widget MapScreen uses, not an ad-hoc lookalike — same
+@@ -4556,6 +4578,10 @@
                  final step = steps[nextIdx];
                  final nextStep =
                      nextIdx + 1 < steps.length ? steps[nextIdx + 1] : null;
@@ -25,7 +349,7 @@
                  return NavInstruction(
                    step: step,
                    nextStep: nextStep,
-@@ -4565,17 +4574,33 @@
+@@ -4565,17 +4591,33 @@
                    colors: c,
                    topInset: MediaQuery.of(context).padding.top,
                    distToNextM: _distToNextStepM,
@@ -67,7 +391,71 @@
            // ── PLACE INFO (search result / map tap, before committing) ────────
            // Same widget MapScreen shows first — "where is this, what's
            // here" — before the driver commits to routing anywhere.
-@@ -4870,10 +4895,23 @@
+@@ -4754,25 +4796,52 @@
+           // ── CURRENT STREET ────────────────────────────────────────────────
+           // Positioned on screen rather than attached to the marker layer —
+           // a label inside that layer rotates with the map in heading-up
+-          // mode, and an upside-down street name is worse than none. Same
+-          // offset MapScreen uses: clears the NavPanel's top edge by 12px.
++          // mode, and an upside-down street name is worse than none.
++          //
++          // VOYAGER: same landscape/portrait split as MapScreen's own —
++          // level with Voyager's chrome row in landscape (12 +
++          // viewPadding.bottom, right-aligned clear of the centred collapse
++          // handle) instead of a full chrome-height above it; left-aligned in
++          // the gap between the nav panel and the speed-limit sign in
++          // portrait, where both are stacked on the left already.
+           if (_isNavigating && _currentStreetName != null)
+             Positioned(
+-              bottom: 136 + MediaQuery.of(context).padding.bottom,
+-              left: 0,
+-              right: 0,
+-              child: Center(
++              bottom: MediaQuery.of(context).size.width >
++                      MediaQuery.of(context).size.height
++                  ? 12 + MediaQuery.of(context).viewPadding.bottom
++                  : 108 + MediaQuery.of(context).padding.bottom,
++              left: MediaQuery.of(context).size.width >
++                      MediaQuery.of(context).size.height
++                  ? null
++                  : 16 + MediaQuery.of(context).viewPadding.left,
++              right: MediaQuery.of(context).size.width >
++                      MediaQuery.of(context).size.height
++                  ? 74 + MediaQuery.of(context).viewPadding.right
++                  : null,
++              child: Align(
++                alignment: MediaQuery.of(context).size.width >
++                        MediaQuery.of(context).size.height
++                    ? Alignment.centerRight
++                    : Alignment.centerLeft,
+                 child: CurrentStreetLabel(name: _currentStreetName!, colors: c),
+               ),
+             ),
+           // ── SPEED LIMIT SIGN (navigation + free drive) ──────────────────────
+-          // Same widget and offset MapScreen uses — 150 + bottomInset clears
+-          // the NavPanel's top edge while navigating and sits well above
+-          // MapBottomBar otherwise.
++          // VOYAGER: in landscape, roughly mid-screen rather than tucked just
++          // above the nav panel — that corner is already busy with the panel
++          // itself and, now, the street-name bubble sharing its gap. Portrait
++          // is unchanged: nothing else competes for that spot there.
+           if (_currentSpeedLimit != null && !_showSearch)
+             Positioned(
+-              bottom: 150 + MediaQuery.of(context).padding.bottom,
+-              left: 16,
++              top: MediaQuery.of(context).size.width >
++                      MediaQuery.of(context).size.height
++                  ? MediaQuery.of(context).size.height / 2 - 40
++                  : null,
++              bottom: MediaQuery.of(context).size.width >
++                      MediaQuery.of(context).size.height
++                  ? null
++                  : 150 + MediaQuery.of(context).padding.bottom,
++              left: 16 + MediaQuery.of(context).viewPadding.left,
+               child: SpeedLimitSign(_currentSpeedLimit!),
+             ),
+           // ── HOME DASHBOARD ───────────────────────────────────────────────
+@@ -4870,10 +4939,23 @@
            // MapScreen: re-planning and checking a saved spot are both
            // pre-trip actions, reporting is not (it stays on the right, in
            // both states).
@@ -93,7 +481,7 @@
                child: Column(mainAxisSize: MainAxisSize.min, children: [
                  MapFab(
                    onTap: _openPlanner,
-@@ -4898,19 +4936,29 @@
+@@ -4898,19 +4980,29 @@
            // ── BOTTOM BAR (notifications / profile / settings) ─────────────────
            // Same widget MapScreen shows when nothing else claims the bottom —
            // idle, no search, no route.

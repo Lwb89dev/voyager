@@ -151,9 +151,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   vc: vc,
                   title: s.mapEngine,
                   subtitle: s.mapEngineWhy,
-                  value:
-                      (_box.get('mapEngine', defaultValue: 'osm') as String) ==
-                          'maplibre',
+                  value: (_box.get('mapEngine', defaultValue: 'maplibre')
+                          as String) ==
+                      'maplibre',
                   onChanged: (value) => setState(
                       () => _box.put('mapEngine', value ? 'maplibre' : 'osm')),
                 ),
