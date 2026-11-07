@@ -3,29 +3,19 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
-    id("dev.flutter.flutter-gradle-plugin")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// ── Release signing ───────────────────────────────────────────────────────────
-// Create android/key.properties with your keystore details; see
-// android/key.properties.template. It is gitignored and must stay that way.
-//
-// Without it Gradle emits an *unsigned* release rather than falling back to the
-// debug key. A debug-signed artifact that calls itself a release is the one
-// outcome worth failing for: it installs, it looks right, and it can never be
-// updated by a properly signed build afterwards.
 val keyPropertiesFile = rootProject.file("key.properties")
-val keyProperties = Properties()
-if (keyPropertiesFile.exists()) {
-    keyProperties.load(FileInputStream(keyPropertiesFile))
+val keyProperties = Properties().apply {
+    if (keyPropertiesFile.isFile) keyPropertiesFile.inputStream().use(::load)
 }
 
 fun signingProperty(name: String): String =
-    (keyProperties[name] as String?)?.takeIf(String::isNotBlank)
+    keyProperties.getProperty(name)?.takeIf(String::isNotBlank)
         ?: throw GradleException("Missing signing property '$name' in ${keyPropertiesFile.path}")
 
-val hasReleaseSigningConfig = keyPropertiesFile.exists()
+val hasReleaseSigningConfig = keyPropertiesFile.isFile
 val releaseStoreFile = if (hasReleaseSigningConfig) file(signingProperty("storeFile")) else null
 if (hasReleaseSigningConfig && releaseStoreFile?.isFile != true) {
     throw GradleException("Release keystore not found: ${releaseStoreFile?.path}")
@@ -33,35 +23,25 @@ if (hasReleaseSigningConfig && releaseStoreFile?.isFile != true) {
 
 android {
     namespace = "com.voyager.voyager"
-    // Pinned to 36 rather than flutter.compileSdkVersion: several AndroidX
-    // libraries pulled in transitively (annotation-experimental 1.4,
-    // exifinterface 1.4) refuse to build against anything lower. Roadstr pins
-    // the same value for the same reason.
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        // flutter_local_notifications requires it: it uses java.time on API
-        // levels that predate it, and desugaring is what backports those
-        // classes rather than raising minSdk past the head units Voyager
-        // targets.
-        isCoreLibraryDesugaringEnabled = true
-    }
+    ndkVersion = "27.1.12297006"
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.voyager.voyager"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // API 26 is the floor for two hard requirements: TelecomManager's
-        // acceptRingingCall (call answering) and the notification-channel API
-        // audio_service needs for its media notification.
         minSdk = 26
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        targetSdk = 36
+        versionCode = 7
+        versionName = "0.3.0"
+    }
+
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     signingConfigs {
@@ -77,28 +57,31 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseSigningConfig) {
-                signingConfigs.getByName("release")
-            } else {
-                null
-            }
-
+            signingConfig = if (hasReleaseSigningConfig) signingConfigs.getByName("release") else null
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-}
 
-dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
 
-    // ContextCompat.registerReceiver with RECEIVER_NOT_EXPORTED, required from
-    // Android 14 and used by PhoneBridge.
-    implementation("androidx.core:core-ktx:1.13.1")
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
@@ -107,6 +90,34 @@ kotlin {
     }
 }
 
-flutter {
-    source = "../.."
+dependencies {
+    implementation(project(":roadstr-integration"))
+
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation("androidx.media3:media3-session:1.8.0")
+    implementation("androidx.media3:media3-ui:1.8.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

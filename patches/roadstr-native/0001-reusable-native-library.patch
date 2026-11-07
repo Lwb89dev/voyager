@@ -1,0 +1,103 @@
+diff --git a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeNavigationRuntime.kt b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeNavigationRuntime.kt
+index bdc0a4a..bfb9e78 100644
+--- a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeNavigationRuntime.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeNavigationRuntime.kt
+@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
+  * The Activity only reports whether it is visible. While a trip lasts the GPS stays on and the voice keeps
+  * speaking; when it ends, and nothing is visible, both are released.
+  */
+-internal class NativeNavigationRuntime(
++class NativeNavigationRuntime(
+     context: Context,
+     names: NativeLiveStoreNames,
+     private val innerPlatform: NativeNavigationPlatform = NoNativeNavigationPlatform,
+diff --git a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
+index 3ca7e98..a54a683 100644
+--- a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
+@@ -147,10 +147,10 @@ open class NativeRoadTestActivity : ComponentActivity() {
+         if (granted) startOfflineListening(language) else launchSystemSpeech()
+     }
+ 
+-    internal open fun obtainRuntime(): NativeNavigationRuntime = NativeNavigationRuntime(applicationContext, storeNames)
++    protected open fun obtainRuntime(): NativeNavigationRuntime = NativeNavigationRuntime(applicationContext, storeNames)
+ 
+     /** Called when the Activity goes; the app keeps the runtime while a trip is under way. */
+-    internal open fun releaseRuntime(runtime: NativeNavigationRuntime) = runtime.release()
++    protected open fun releaseRuntime(runtime: NativeNavigationRuntime) = runtime.release()
+     // One transport for every network service: a single connection pool and
+     // the same deadline and response-size policy for all of them.
+     private val httpClient by lazy(LazyThreadSafetyMode.NONE) { NativeBoundedHttpClient() }
+@@ -424,7 +424,7 @@ open class NativeRoadTestActivity : ComponentActivity() {
+     protected open val shellMode: NativeShellMode = NativeShellMode.RoadTest
+ 
+     @Composable
+-    private fun RoadstrContent() {
++    protected open fun RoadstrContent() {
+         // Read once, after the gate has opened: what an import wrote is what the first frame shows.
+         val nostrBridge = remember { buildNostr().also { nostr = it } }
+         val meshBridge = remember { buildMesh(nostrBridge).also { mesh = it } }
+diff --git a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestLocationController.kt b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestLocationController.kt
+index ec5254c..8c791a1 100644
+--- a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestLocationController.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestLocationController.kt
+@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
+  * (the foreground service keeps the process alive) so guidance continues with
+  * the screen off or another app in front.
+  */
+-internal class NativeRoadTestLocationController(
++class NativeRoadTestLocationController(
+     context: Context,
+     private val source: NativeLocationSource = AndroidLocationManagerSource(context),
+     private val hasLocationPermission: () -> Boolean = {
+diff --git a/android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationForegroundService.kt b/native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationForegroundService.kt
+similarity index 98%
+rename from android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationForegroundService.kt
+rename to native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationForegroundService.kt
+index 27417f6..523d497 100644
+--- a/android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationForegroundService.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationForegroundService.kt
+@@ -47,9 +47,7 @@ class NativeNavigationForegroundService : Service() {
+             NativeNavigationNotificationDispatcher.attach(::handleNavigationNotification)
+         locationService = NativeLocationService(
+             source = AndroidLocationManagerSource(applicationContext, mainLooper),
+-            // Canary consumers observe this process-local stream without
+-            // replacing the established Flutter GPS source yet.
+-            onFix = NativeNavigationFixDispatcher::publish,
++            onFix = {},
+             scope = serviceScope,
+         )
+     }
+diff --git a/android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationLifecycle.kt b/native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationLifecycle.kt
+similarity index 100%
+rename from android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationLifecycle.kt
+rename to native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationLifecycle.kt
+diff --git a/android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationServiceState.kt b/native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationServiceState.kt
+similarity index 100%
+rename from android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationServiceState.kt
+rename to native-android/app/src/main/kotlin/app/roadstr/service/navigation/NativeNavigationServiceState.kt
+diff --git a/android/app/src/main/kotlin/app/roadstr/startup/NativeGuidanceRuntime.kt b/native-android/app/src/main/kotlin/app/roadstr/startup/NativeGuidanceRuntime.kt
+similarity index 95%
+rename from android/app/src/main/kotlin/app/roadstr/startup/NativeGuidanceRuntime.kt
+rename to native-android/app/src/main/kotlin/app/roadstr/startup/NativeGuidanceRuntime.kt
+index 9c5e808..f6ac959 100644
+--- a/android/app/src/main/kotlin/app/roadstr/startup/NativeGuidanceRuntime.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/startup/NativeGuidanceRuntime.kt
+@@ -14,7 +14,7 @@ import app.roadstr.service.notifications.NativeNavigationNotificationDispatcher
+  * "GPS active"), and the notification that says what the next manoeuvre is. Both already existed for the
+  * Flutter app; the Kotlin app asks for them when a trip starts and lets go when it ends.
+  */
+-internal class NativeGuidancePlatform(context: Context) : NativeNavigationPlatform {
++public class NativeGuidancePlatform(context: Context) : NativeNavigationPlatform {
+     private val appContext = context.applicationContext
+ 
+     override fun guidanceStarted() {
+@@ -48,7 +48,7 @@ internal class NativeGuidancePlatform(context: Context) : NativeNavigationPlatfo
+  * it is released only when no trip is running, so a rotation, a swiped-away screen or a locked phone does
+  * not end a trip, and the next Activity (opened from the notification) finds it still driving.
+  */
+-internal object NativeGuidanceRuntimeHolder {
++public object NativeGuidanceRuntimeHolder {
+     private val lock = Any()
+     private var current: NativeNavigationRuntime? = null
+ 

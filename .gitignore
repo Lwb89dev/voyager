@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/build/
+/roadstr-integration/build/
 /android/app/release
 
 # Local SDK paths — machine-specific, never portable between checkouts.
@@ -68,6 +69,7 @@ GoogleService-Info.plist
 # tools/prepare_roadstr.sh. Generated, never edited by hand; re-run the script
 # after pulling Roadstr.
 .roadstr/
+.roadstr-native/
 assets/icons/
 assets/cursors/
 assets/kokoro_phrases/

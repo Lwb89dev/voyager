@@ -1,0 +1,30 @@
+diff --git a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
+--- a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
+@@ -137,7 +137,7 @@ open class NativeRoadTestActivity : ComponentActivity() {
+             ),
+         )
+     }
+-    private val speechGateway: AndroidSpeechGateway get() = speechLazy.value
++    protected val speechGateway: AndroidSpeechGateway get() = speechLazy.value
+     private var pendingSpeechLanguage: String? = null
+     private val microphonePermission = registerForActivityResult(
+         ActivityResultContracts.RequestPermission(),
+@@ -240,7 +240,7 @@ open class NativeRoadTestActivity : ComponentActivity() {
+     private val bunkerRelayConnector by lazy(LazyThreadSafetyMode.NONE) {
+         NativePersistentRelayConnector(OkHttpRelayConnector())
+     }
+-    private val voiceGateway: NativeRoadTestVoiceGateway get() = runtime.voice
++    protected val voiceGateway: NativeRoadTestVoiceGateway get() = runtime.voice
+     private val identityGateway by lazy(LazyThreadSafetyMode.NONE) {
+         NativeRoadTestIdentityGateway(applicationContext, storeNames, bunkerRelayConnector)
+             .also { it.openUrl = ::openApprovalPage }
+@@ -547,7 +547,7 @@ open class NativeRoadTestActivity : ComponentActivity() {
+ 
+     /** The listening card, drawn over the whole shell while the offline recogniser is working. */
+     @Composable
+-    private fun SpeechOverlayHost() {
++    protected open fun SpeechOverlayHost() {
+         if (!speechLazy.isInitialized()) return
+         val snapshot by speechGateway.state.collectAsStateWithLifecycle()
+         NativeSpeechOverlay(

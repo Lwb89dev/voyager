@@ -43,7 +43,16 @@ screen. Spend that budget carefully.
 
 Night dimming paints a scrim over the whole app, including the button bar,
 after local sunset — computed on-device from the position, no light sensor and
-no network call.
+no network call. The native per-window brightness override is capped at 75%,
+including on first launch and when an older preference stored 100%; the user
+can still choose a lower level or the system default.
+
+Voyager's expanded bottom chrome reserves an 84 dp inset plus the system
+navigation-bar height inside the Roadstr composition (52 dp plus the system
+inset when collapsed). Roadstr menus, quick actions and settings must be laid
+out above that inset,
+never underneath the Voyager bar. Verify portrait, landscape and the Roadstr
+settings panel with screenshots after changing either chrome implementation.
 
 ## Motion
 

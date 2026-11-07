@@ -1,0 +1,113 @@
+diff --git a/android/app/src/main/kotlin/app/roadstr/feature/home/NativeRoadstrShell.kt b/android/app/src/main/kotlin/app/roadstr/feature/home/NativeRoadstrShell.kt
+index dcaeab6..1fdd658 100644
+--- a/android/app/src/main/kotlin/app/roadstr/feature/home/NativeRoadstrShell.kt
++++ b/android/app/src/main/kotlin/app/roadstr/feature/home/NativeRoadstrShell.kt
+@@ -352,6 +352,7 @@ fun NativeRoadstrShell(
+     onLocationIntervalChanged: (Long) -> Unit = {},
+     performanceDiagnosticsEnabled: Boolean = false,
+     onPerformanceDiagnostic: (String) -> Unit = {},
++    maximumScreenBrightness: Double = 1.0,
+     identityGateway: NativeIdentityGateway? = null,
+     onAmberLogin: (Long) -> Unit = {},
+     onOpenExternal: (String) -> Unit = {},
+@@ -1320,7 +1321,7 @@ fun NativeRoadstrShell(
+         // Screen-wake and brightness-floor policy, same as the Flutter map screens.
+         val wantsScreenOn = settingsState.values.keepScreenOnAlways ||
+             ((activeNavigationState.active || transitNavigationState.active) && settingsState.values.keepScreenOn)
+-        val brightnessFloor = settingsState.values.minimumBrightness
++        val brightnessFloor = settingsState.values.minimumBrightness.coerceAtMost(maximumScreenBrightness)
+         DisposableEffect(wantsScreenOn, brightnessFloor) {
+             val window = (context as? Activity)?.window
+             if (window != null) {
+@@ -2384,6 +2385,7 @@ fun NativeRoadstrShell(
+                 )
+                 NativeSettingsPanel(
+                     snapshot = settingsState,
++                    maximumScreenBrightness = maximumScreenBrightness,
+                     onAction = { revision, action ->
+                         when (action) {
+                             NativeSettingsUiAction.Close -> settingsSession.hide(revision)
+@@ -2410,7 +2412,10 @@ fun NativeRoadstrShell(
+                                 settingsSession.updatePerformanceProfile(revision, action.value)
+                             }
+                             is NativeSettingsUiAction.BrightnessChanged -> {
+-                                settingsSession.updateBrightness(revision, action.value)
++                                settingsSession.updateBrightness(
++                                    revision,
++                                    action.value.coerceAtMost(maximumScreenBrightness),
++                                )
+                             }
+                             is NativeSettingsUiAction.TileUrlChanged -> {
+                                 settingsSession.updateMapTileUrl(revision, action.value)
+diff --git a/android/app/src/main/kotlin/app/roadstr/feature/settings/NativeSettingsPanel.kt b/android/app/src/main/kotlin/app/roadstr/feature/settings/NativeSettingsPanel.kt
+index 152f2eb..541e4b1 100644
+--- a/android/app/src/main/kotlin/app/roadstr/feature/settings/NativeSettingsPanel.kt
++++ b/android/app/src/main/kotlin/app/roadstr/feature/settings/NativeSettingsPanel.kt
+@@ -170,6 +170,7 @@ fun NativeSettingsPanel(
+     snapshot: NativeSettingsSnapshot,
+     onAction: (Long, NativeSettingsUiAction) -> Unit,
+     modifier: Modifier = Modifier,
++    maximumScreenBrightness: Double = 1.0,
+     /** Whether web results are switched on and pointed at an instance; the web screen holds the rest. */
+     webSearchActive: Boolean = false,
+ ) {
+@@ -216,5 +216,6 @@
+                     MapSection(
+                         values = values,
++                        maximumScreenBrightness = maximumScreenBrightness,
+                         overlaysExpanded = overlaysExpanded,
+                         onToggleOverlays = { overlaysExpanded = !overlaysExpanded },
+                         onAction = { onAction(revision, it) },
+@@ -456,5 +457,6 @@
+ private fun MapSection(
+     values: NativeSettingsInput,
++    maximumScreenBrightness: Double,
+     overlaysExpanded: Boolean,
+     onToggleOverlays: () -> Unit,
+     onAction: (NativeSettingsUiAction) -> Unit,
+@@ -475,18 +476,19 @@ private fun MapSection(
+             R.string.native_settings_keep_screen_always_desc,
+             values.keepScreenOnAlways,
+         ) { onAction(NativeSettingsUiAction.BooleanChanged(NativeSettingsBooleanKey.KeepScreenOnAlways, it)) }
++        val brightness = values.minimumBrightness.coerceAtMost(maximumScreenBrightness)
+         SliderRow(
+             title = stringResource(R.string.native_settings_min_brightness),
+             description = stringResource(R.string.native_settings_min_brightness_desc),
+-            value = values.minimumBrightness,
+-            valueLabel = if (values.minimumBrightness == 0.0) {
++            value = brightness,
++            valueLabel = if (brightness == 0.0) {
+                 stringResource(R.string.native_settings_min_brightness_off)
+             } else {
+-                "${(values.minimumBrightness * 100).roundToInt()}%"
++                "${(brightness * 100).roundToInt()}%"
+             },
+-            range = 0f..1f,
+-            steps = 19,
+-        ) { onAction(NativeSettingsUiAction.BrightnessChanged(it.toDouble())) }
++            range = 0f..maximumScreenBrightness.toFloat(),
++            steps = ((maximumScreenBrightness * 20).roundToInt() - 1).coerceAtLeast(0),
++        ) { onAction(NativeSettingsUiAction.BrightnessChanged(it.toDouble().coerceAtMost(maximumScreenBrightness))) }
+         ExpandableCard(
+             title = stringResource(R.string.native_settings_road_overlays),
+             expanded = overlaysExpanded,
+diff --git a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
+index 3ca7e98..67ad68c 100644
+--- a/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
++++ b/native-android/app/src/main/kotlin/app/roadstr/roadtest/NativeRoadTestActivity.kt
+@@ -100,6 +100,7 @@ import kotlinx.coroutines.launch
+ open class NativeRoadTestActivity : ComponentActivity() {
+     /** Only read from lazy members and from `onCreate`, never while this class is being constructed. */
+     protected open val storeNames: NativeLiveStoreNames = NativeLiveStoreNames()
++    protected open val maximumScreenBrightness: Double = 1.0
+     // The GPS feed, the voice and the trip's host. Road-test makes them per Activity; the app keeps
+     // them for the whole process so a trip does not end with the screen.
+     private val runtime: NativeNavigationRuntime by lazy(LazyThreadSafetyMode.NONE) { obtainRuntime() }
+@@ -464,6 +465,7 @@ open class NativeRoadTestActivity : ComponentActivity() {
+         val speechTranscript by searchSpeechTranscript.collectAsStateWithLifecycle()
+         NativeRoadstrShell(
+             mode = shellMode,
++            maximumScreenBrightness = maximumScreenBrightness,
+             gpsSnapshot = gpsSnapshot,
+             journeyGateway = journeyGateway,
+             voiceGateway = voiceGateway,
